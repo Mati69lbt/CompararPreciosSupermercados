@@ -1,0 +1,112 @@
+import React, { useState, useEffect } from "react";
+import { SUPERMARKET_LOGOS } from "../../assets/logos/logos";
+import { mapearProductoCoto } from "./mapearProductoCoto";
+
+const ProductsCoto = () => {
+  const [productos, setProductos] = useState([]);
+  const [cargando, setCargando] = useState(false);
+
+  const probarCoto = async (busqueda = "leche") => {
+    setCargando(true);
+    try {
+      const urlCoto = `https://api.coto.com.ar/api/v1/ms-digital-sitio-bff-web/api/v1/products/search/${busqueda}?key=${import.meta.env.VITE_API_COTO_KEY}&num_results_per_page=24&pre_filter_expression=%7B%22name%22:%22store_availability%22,%22value%22:%22${import.meta.env.VITE_API_COTO_STORE}%22%7D`;
+
+      const res = await fetch(urlCoto);
+      const data = await res.json();
+
+      const productosLimpios = mapearProductoCoto(data).map((p) => ({
+        ...p,
+        logoTienda: SUPERMARKET_LOGOS.coto,
+      }));
+
+      setProductos(productosLimpios);
+    } catch (error) {
+      console.error("❌ Error al procesar Coto:", error);
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  useEffect(() => {
+    probarCoto("leche");
+  }, []);
+
+  return (
+    <div className="p-6 bg-slate-900 min-h-screen text-white">
+      <h2 className="text-2xl font-bold mb-6 text-center">Resultados Coto</h2>
+
+      {cargando ? (
+        <p className="text-center text-slate-400">Cargando productos...</p>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {productos.map((prod) => (
+            <div
+              key={prod.id}
+              className="bg-slate-800 border border-slate-700 rounded-xl p-4 flex flex-col justify-between shadow-lg hover:border-slate-500 transition-all relative overflow-hidden"
+            >
+              {/* Logo Tienda e Imagen de Producto */}
+              <div>
+                <div className="flex justify-between items-center mb-3">
+                  <img
+                    src={prod.logoTienda}
+                    alt="Coto"
+                    className="h-6 object-contain"
+                  />
+                  <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
+                    {prod.marca}
+                  </span>
+                </div>
+
+                <div className="w-full h-40 bg-white/5 rounded-lg mb-4 flex items-center justify-center overflow-hidden">
+                  {prod.imagenProducto ? (
+                    <img
+                      src={prod.imagenProducto}
+                      alt={prod.nombre}
+                      className="h-full object-contain p-2"
+                    />
+                  ) : (
+                    <span className="text-xs text-slate-500">Sin imagen</span>
+                  )}
+                </div>
+
+                <h3 className="font-medium text-slate-100 text-sm line-clamp-2 mb-2">
+                  {prod.nombre}
+                </h3>
+                {/* Insignia de Promoción si existe */}
+                {/* Insignia de Promoción debajo del nombre */}
+                {prod.promocion && (
+                  <div className="mt-1">
+                    <span className="inline-block bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-semibold px-2 py-0.5 rounded-md">
+                      🏷️ {prod.promocion}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Detalles y Precio */}
+              <div className="mt-4 pt-3 border-t border-slate-700/60">
+                <div className="flex justify-between text-xs text-slate-400 mb-2">
+                  <span>{prod.categoria}</span>
+                  {prod.contenido && (
+                    <span className="font-semibold text-slate-300">
+                      {prod.contenido}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex justify-between items-baseline mt-2">
+                  <span className="text-xs text-slate-400">Precio</span>
+                  <span className="text-xl font-extrabold text-emerald-400">
+                    ${prod.precio.toLocaleString("es-AR")}
+                  </span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ProductsCoto;
