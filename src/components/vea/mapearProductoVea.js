@@ -3,16 +3,22 @@
 const extraerContenidoDeTexto = (texto = '') => {
   if (!texto) return '';
 
-  const regex = /(\d+(?:[\.,]\d+)?)\s*(l|lt|lts|litro|litros|ml|cc|g|gr|grs|gramos|kg|kilo|kilos|u|unid|unidades)\b/i;
+  // Esta RegEx busca números seguidos de unidades
+  // \bl\b y \bg\b aseguran que "L" y "G" no coincidan con letras dentro de "Leche"
+  const regex = /(\d+(?:[\.,]\d+)?)\s*(lts?|litros?|ml|cc|grs?|gramos?|kgs?|kilos?|u|unid|unidades?|\bg\b|\bl\b)/i;
   const match = texto.match(regex);
 
   if (match) {
-    const cantidad = match[1].replace(',', '.');
+    let cantidad = match[1].replace(',', '.');
+    if (cantidad.endsWith('.0')) {
+      cantidad = cantidad.replace('.0', '');
+    }
+
     let unidad = match[2].toLowerCase();
 
     if (['l', 'lt', 'lts', 'litro', 'litros'].includes(unidad)) unidad = 'L';
     else if (['ml', 'cc'].includes(unidad)) unidad = 'ML';
-    else if (['g', 'gr', 'grs', 'gramos'].includes(unidad)) unidad = 'G';
+    else if (['g', 'gr', 'grs', 'gramos'].includes(unidad)) unidad = 'GR';
     else if (['kg', 'kilo', 'kilos'].includes(unidad)) unidad = 'KG';
     else if (['u', 'unid', 'unidades'].includes(unidad)) unidad = 'UNID';
     else unidad = unidad.toUpperCase();
@@ -36,15 +42,8 @@ export const mapearProductoVea = (dataOriginal = []) => {
       const precioFinal = seller?.Price || seller?.ListPrice || 0;
       const imagenProducto = item.items?.[0]?.images?.[0]?.imageUrl || '';
 
-      const contenidoBruto =
-        item['Unidad de medida']?.[0] ||
-        item['Contenido Neto']?.[0] ||
-        item['Gramaje']?.[0] ||
-        '';
-
-      const contenido = contenidoBruto 
-        ? extraerContenidoDeTexto(contenidoBruto) || contenidoBruto 
-        : extraerContenidoDeTexto(nombre);
+      // EXTRAER ÚNICAMENTE DEL NOMBRE
+      const contenido = extraerContenidoDeTexto(nombre);
 
       let promocion = null;
       if (seller?.Teasers && seller.Teasers.length > 0) {
@@ -60,7 +59,7 @@ export const mapearProductoVea = (dataOriginal = []) => {
         precio: Number(precioFinal),
         marca,
         categoria: item.categories?.[0]?.split('/')[1] || 'General',
-        contenido: contenido || 'Sin especificar',
+        contenido: contenido || 'Sin especificar', // Si no tiene medida en el título, pasa a ser "Sin especificar"
         promocion,
         imagenProducto,
         linkCompra: item.link || 'https://www.vea.com.ar',

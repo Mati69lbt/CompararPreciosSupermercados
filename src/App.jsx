@@ -82,8 +82,7 @@ export default function App() {
       {/* <ProductsCarrefour /> */}
       {/* <ProductsDia /> */}
       {/* <ProductsChangoMas /> */}
-      {/* <ProductsVea /> */}
-      <ProductsMeli />
+      <ProductsVea />
     </div>
   );
 }
