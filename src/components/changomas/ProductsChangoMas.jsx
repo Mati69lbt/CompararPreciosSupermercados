@@ -4,25 +4,26 @@ import { mapearProductoChangoMas } from "./mapearProductoChangoMas";
 
 const PRODUCTOS_POR_PAGINA = 50;
 
-const ProductsChangoMas = () => {
+const ProductsChangoMas = ({ busqueda, onCount }) => {
   const [productos, setProductos] = useState([]);
   const [cargando, setCargando] = useState(false);
-  const [busquedaActual] = useState("leche");
 
   // Estados para Filtros
   const [filtroMarca, setFiltroMarca] = useState("");
   const [filtroContenido, setFiltroContenido] = useState("");
 
   // Carga automática de las 4 primeras páginas (200 productos)
-  const cargarPaginasIniciales = async () => {
+  const cargarPaginasIniciales = async (termino) => {
     setCargando(true);
+    setFiltroMarca("");
+    setFiltroContenido("");
     try {
       const paginasACargar = [0, 1, 2, 3];
       const peticiones = paginasACargar.map((pageIndex) => {
         const from = pageIndex * PRODUCTOS_POR_PAGINA;
         const to = from + PRODUCTOS_POR_PAGINA - 1;
         return fetch(
-          `/api-changomas?ft=${busquedaActual}&_from=${from}&_to=${to}`,
+          `/api-changomas?ft=${termino}&_from=${from}&_to=${to}`,
         )
           .then((res) => res.json())
           .catch(() => []);
@@ -30,7 +31,6 @@ const ProductsChangoMas = () => {
 
       const resultados = await Promise.all(peticiones);
       const todosRaw = resultados.flat();
-      console.log("data", todosRaw);
 
       if (Array.isArray(todosRaw) && todosRaw.length > 0) {
         const productosLimpios = mapearProductoChangoMas(todosRaw).map((p) => ({
@@ -40,17 +40,28 @@ const ProductsChangoMas = () => {
         }));
 
         setProductos(productosLimpios);
+      } else {
+        setProductos([]);
       }
     } catch (error) {
       console.error("❌ Error al procesar MásOnline / ChangoMás:", error);
+      setProductos([]);
     } finally {
       setCargando(false);
     }
   };
 
   useEffect(() => {
-    cargarPaginasIniciales();
-  }, [busquedaActual]);
+    if (busqueda) {
+      cargarPaginasIniciales(busqueda);
+    } else {
+      setProductos([]);
+    }
+  }, [busqueda]);
+
+  useEffect(() => {
+    onCount?.(productos.length);
+  }, [productos, onCount]);
 
   // Lista única de Marcas
   const marcasDisponibles = useMemo(() => {
@@ -84,47 +95,29 @@ const ProductsChangoMas = () => {
   }, [productos, filtroMarca, filtroContenido]);
 
   return (
-    <div className="p-6 bg-slate-900 min-h-screen text-white">
-      <h2 className="text-2xl font-bold mb-6 text-center">
-        Resultados MásOnline / ChangoMás ({productos.length} productos)
-      </h2>
-
-      {/* Selects de Filtrado (Marca y Contenido) */}
-      <div className="max-w-xl mx-auto mb-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {/* Filtro Marca */}
-        <div>
-          <label className="block text-xs text-slate-400 font-medium mb-1">
-            Filtrar por Marca:
-          </label>
+    <div className="bg-slate-900 text-white flex flex-col">
+      <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800 p-2 flex flex-col gap-2">
+        {/* Selects de Filtrado (Marca y Contenido) */}
+        <div className="flex flex-row gap-1.5">
           <select
             value={filtroMarca}
             onChange={(e) => setFiltroMarca(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg p-2.5 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            className="w-1/2 bg-slate-800 border border-slate-700 text-slate-200 text-[11px] rounded-md p-1.5 focus:ring-1 focus:ring-amber-500 focus:outline-none"
           >
-            <option value="">
-              Todas las marcas ({marcasDisponibles.length})
-            </option>
+            <option value="">Marca ({marcasDisponibles.length})</option>
             {marcasDisponibles.map((marca, i) => (
               <option key={i} value={marca}>
                 {marca}
               </option>
             ))}
           </select>
-        </div>
 
-        {/* Filtro Contenido / Medida */}
-        <div>
-          <label className="block text-xs text-slate-400 font-medium mb-1">
-            Filtrar por Medida:
-          </label>
           <select
             value={filtroContenido}
             onChange={(e) => setFiltroContenido(e.target.value)}
-            className="w-full bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg p-2.5 focus:ring-2 focus:ring-amber-500 focus:outline-none"
+            className="w-1/2 bg-slate-800 border border-slate-700 text-slate-200 text-[11px] rounded-md p-1.5 focus:ring-1 focus:ring-amber-500 focus:outline-none"
           >
-            <option value="">
-              Todas las medidas ({contenidosDisponibles.length})
-            </option>
+            <option value="">Medida ({contenidosDisponibles.length})</option>
             {contenidosDisponibles.map((cont, i) => (
               <option key={i} value={cont}>
                 {cont}
@@ -134,75 +127,59 @@ const ProductsChangoMas = () => {
         </div>
       </div>
 
+      <div className="p-2">
       {cargando ? (
-        <p className="text-center text-slate-400">
-          Cargando 4 páginas de productos...
-        </p>
+        <p className="text-center text-slate-400 text-xs py-4">Cargando...</p>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        <div className="flex flex-col gap-2">
           {productosFiltrados.map((prod) => (
             <div
               key={prod.id}
-              className="bg-slate-800 border border-slate-700 rounded-xl p-4 flex flex-col justify-between shadow-lg hover:border-slate-500 transition-all overflow-hidden"
+              className="bg-slate-800 border border-slate-700 rounded-lg p-2 flex flex-col justify-between shadow hover:border-slate-500 transition-all overflow-hidden"
             >
-              <div>
-                <div className="flex justify-between items-center mb-3">
-                  <img
-                    src={prod.logoTienda}
-                    alt="ChangoMás"
-                    className="h-6 object-contain"
-                  />
-                  <span className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
-                    {prod.marca}
-                  </span>
-                </div>
-
-                <div className="w-full h-40 bg-white/5 rounded-lg mb-4 flex items-center justify-center overflow-hidden">
+              <div className="flex gap-2">
+                <div className="w-14 h-14 shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden">
                   {prod.imagenProducto ? (
                     <img
                       src={prod.imagenProducto}
                       alt={prod.nombre}
-                      className="h-full object-contain p-2"
+                      className="h-full object-contain p-1"
                     />
                   ) : (
-                    <span className="text-xs text-slate-500">Sin imagen</span>
+                    <span className="text-[9px] text-slate-500">
+                      Sin imagen
+                    </span>
                   )}
                 </div>
-
-                <h3 className="font-medium text-slate-100 text-sm line-clamp-2 mb-2">
-                  {prod.nombre}
-                </h3>
-
-                {prod.promocion && (
-                  <div className="mt-1">
-                    <span className="inline-block bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-semibold px-2 py-0.5 rounded-md">
-                      🏷️ {prod.promocion}
-                    </span>
-                  </div>
-                )}
+                <div className="min-w-0 flex-1">
+                  <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
+                    {prod.marca}
+                  </span>
+                  <h3 className="font-medium text-slate-100 text-[11px] line-clamp-2">
+                    {prod.nombre}
+                  </h3>
+                </div>
               </div>
 
-              <div className="mt-4 pt-3 border-t border-slate-700/60">
-                <div className="flex justify-between text-xs text-slate-400 mb-2">
-                  <span>{prod.categoria}</span>
-                  {prod.contenido && (
-                    <span className="font-semibold text-slate-300">
-                      {prod.contenido}
-                    </span>
-                  )}
-                </div>
+              {prod.promocion && (
+                <span className="inline-block mt-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-semibold px-1.5 py-0.5 rounded-md w-fit">
+                  🏷️ {prod.promocion}
+                </span>
+              )}
 
-                <div className="flex justify-between items-baseline mt-2">
-                  <span className="text-xs text-slate-400">Precio</span>
-                  <span className="text-xl font-extrabold text-emerald-400">
-                    ${prod.precio.toLocaleString("es-AR")}
-                  </span>
-                </div>
+              <div className="mt-1.5 pt-1.5 border-t border-slate-700/60 flex justify-between items-baseline">
+                <span className="text-[10px] text-slate-400">
+                  {prod.contenido}
+                </span>
+                <span className="text-sm font-extrabold text-emerald-400">
+                  ${prod.precio.toLocaleString("es-AR")}
+                </span>
               </div>
             </div>
           ))}
         </div>
       )}
+      </div>
     </div>
   );
 };

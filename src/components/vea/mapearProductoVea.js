@@ -65,5 +65,5 @@ export const mapearProductoVea = (dataOriginal = []) => {
         linkCompra: item.link || 'https://www.vea.com.ar',
       };
     })
-    .filter((producto) => producto.precio > 0);
+    .filter((producto) => producto.precio > 500);
 };
