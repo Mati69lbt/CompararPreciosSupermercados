@@ -24,6 +24,44 @@ const extraerYNormalizarContenido = (nombre) => {
   return `${cantidad} ${unidad}`;
 };
 
+const formatearPrecio = (valor) =>
+  Number(valor).toLocaleString('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+
+// Calcula el precio por kilo/litro a partir del precio final y del "contenido"
+// ya extraído (ej: "1.5 L", "500 ML", "40 GR")
+const calcularPrecioPorUnidad = (precioFinal, contenido) => {
+  const precio = Number(precioFinal);
+  if (!precio || precio <= 0) return null;
+
+  if (!contenido || contenido === 'Sin especificar') {
+    return `${formatearPrecio(precio)} x 1 UNID`;
+  }
+
+  const match = contenido.match(/^(\d+(?:[.,]\d+)?)\s*(GR|KG|ML|L|UNID)$/i);
+  if (!match) return null;
+
+  const cantidad = parseFloat(match[1].replace(',', '.'));
+  const unidad = match[2].toUpperCase();
+
+  if (unidad === 'UNID') {
+    return `${formatearPrecio(precio)} x 1 UNID`;
+  }
+
+  const esPeso = unidad === 'GR' || unidad === 'KG';
+  const totalBase = unidad === 'KG' || unidad === 'L' ? cantidad * 1000 : cantidad;
+  if (!totalBase || totalBase <= 0) return null;
+
+  const unidadFinal = esPeso ? 'KG' : 'L';
+  const precioPorUnidad = (precio / totalBase) * 1000;
+
+  return `${formatearPrecio(precioPorUnidad)} x 1 ${unidadFinal}`;
+};
+
 export const mapearProductoCoto = (dataOriginal) => {
   const productosRaw =
     dataOriginal?.response?.results ||
@@ -38,7 +76,7 @@ export const mapearProductoCoto = (dataOriginal) => {
     const nombre = item.value || d.sku_description || d.sku_display_name || "Producto sin nombre";
     
     // Extracción de Marca
-    const marca = d.product_brand || "Sin marca";
+    const marca = (d.product_brand || "Sin marca").toString().toUpperCase().trim();
 
     // Extraer y homogenizar contenido directamente del título
     const contenido = extraerYNormalizarContenido(nombre);
@@ -80,6 +118,7 @@ export const mapearProductoCoto = (dataOriginal) => {
       marca,
       categoria: d.product_class || "General",
       contenido,
+      precioPorUnidad: calcularPrecioPorUnidad(precioFinal, contenido),
       promocion,
       imagenProducto,
       linkCompra,

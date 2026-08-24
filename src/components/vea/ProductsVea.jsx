@@ -1,63 +1,24 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { SUPERMARKET_LOGOS } from "../../assets/logos/logos";
 import { mapearProductoVea } from "./mapearProductoVea";
+import { obtenerRangoContenido } from "../../utils/contenido";
 
 const PRODUCTOS_POR_PAGINA = 50;
 
-const RANGOS_CONTENIDO = [
-  "Menos de 200 GR",
-  "200 a 500 GR",
-  "500 GR a 1 KG",
-  "1 KG",
-  "Más de 1 KG",
-  "Menos de 200 ML",
-  "200 a 500 ML",
-  "500 ML a 1 L",
-  "1 L",
-  "Más de 1 L",
-  "Unidades / Sin especificar",
-];
-
-// Convierte "1,5 L" / "800 GR" / "2 KG" a un rango de Peso o Volumen, sin mezclar familias
-const obtenerRangoContenido = (contenido) => {
-  if (!contenido || contenido === "Sin especificar") return "Unidades / Sin especificar";
-
-  const match = contenido.match(/^(\d+(?:[.,]\d+)?)\s*(GR|KG|ML|L)$/i);
-  if (!match) return "Unidades / Sin especificar";
-
-  const cantidad = parseFloat(match[1].replace(",", "."));
-  const unidad = match[2].toUpperCase();
-  const esPeso = unidad === "GR" || unidad === "KG";
-  const equivalente = unidad === "KG" || unidad === "L" ? cantidad * 1000 : cantidad;
-
-  if (esPeso) {
-    if (equivalente < 200) return "Menos de 200 GR";
-    if (equivalente < 500) return "200 a 500 GR";
-    if (equivalente < 1000) return "500 GR a 1 KG";
-    if (equivalente === 1000) return "1 KG";
-    return "Más de 1 KG";
-  }
-
-  if (equivalente < 200) return "Menos de 200 ML";
-  if (equivalente < 500) return "200 a 500 ML";
-  if (equivalente < 1000) return "500 ML a 1 L";
-  if (equivalente === 1000) return "1 L";
-  return "Más de 1 L";
-};
-
-const ProductsVea = ({ busqueda, onCount }) => {
+const ProductsVea = ({
+  busqueda,
+  filtroContenido = "",
+  filtroMarca = "",
+  onCount,
+  onProducts,
+}) => {
   const [productos, setProductos] = useState([]);
   const [cargando, setCargando] = useState(false);
-
-  // Estados para los Filtros
-  const [filtroMarca, setFiltroMarca] = useState("");
-  const [filtroContenido, setFiltroContenido] = useState("");
+  const [productoSeleccionado, setProductoSeleccionado] = useState(null);
 
   // Carga automática de las 4 primeras páginas (200 productos)
   const cargarPaginasIniciales = async (termino) => {
     setCargando(true);
-    setFiltroMarca("");
-    setFiltroContenido("");
     try {
       const paginasACargar = [0, 1, 2, 3];
       const peticiones = paginasACargar.map((pageIndex) => {
@@ -69,6 +30,7 @@ const ProductsVea = ({ busqueda, onCount }) => {
       });
 
       const resultados = await Promise.all(peticiones);
+
       const todosRaw = resultados.flat();
 
       if (Array.isArray(todosRaw) && todosRaw.length > 0) {
@@ -102,25 +64,15 @@ const ProductsVea = ({ busqueda, onCount }) => {
     }
   }, [busqueda]);
 
-  // Lista única de Marcas
-  const marcasDisponibles = useMemo(() => {
-    const marcas = productos
-      .map((p) => p.marca)
-      .filter((m) => m && m !== "Sin marca");
-    return [...new Set(marcas)].sort((a, b) => a.localeCompare(b));
-  }, [productos]);
-
-  // Lista única de Rangos de Contenido/Medida
-  const contenidosDisponibles = useMemo(() => {
-    const rangos = new Set(productos.map((p) => obtenerRangoContenido(p.contenido)));
-    return RANGOS_CONTENIDO.filter((r) => rangos.has(r));
-  }, [productos]);
+  useEffect(() => {
+    onProducts?.(productos);
+  }, [productos, onProducts]);
 
   // Filtrado por Marca/Rango de Medida + ORDENAMIENTO DE MENOR A MAYOR PRECIO
   const productosFiltrados = useMemo(() => {
     return productos
       .filter((p) => {
-        const coincideMarca = filtroMarca ? p.marca === filtroMarca : true;
+        const coincideMarca = filtroMarca ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim() : true;
         const coincideContenido = filtroContenido
           ? obtenerRangoContenido(p.contenido) === filtroContenido
           : true;
@@ -135,95 +87,155 @@ const ProductsVea = ({ busqueda, onCount }) => {
 
   return (
     <div className="bg-slate-900 text-white flex flex-col">
-      <div className="sticky top-0 z-10 bg-slate-900 border-b border-slate-800 p-2 flex flex-col gap-2">
-        {/* Selects de Filtrado (Marca y Contenido) */}
-        <div className="flex flex-row gap-1.5">
-          <select
-            value={filtroMarca}
-            onChange={(e) => setFiltroMarca(e.target.value)}
-            className="w-1/2 bg-slate-800 border border-slate-700 text-slate-200 text-[11px] rounded-md p-1.5 focus:ring-1 focus:ring-red-500 focus:outline-none"
-          >
-            <option value="">Marca ({marcasDisponibles.length})</option>
-            {marcasDisponibles.map((marca, i) => (
-              <option key={i} value={marca}>
-                {marca}
-              </option>
-            ))}
-          </select>
+      <div className="p-2">
+        {cargando ? (
+          <p className="text-center text-slate-400 text-xs py-4">Cargando...</p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {productosFiltrados.map((prod) => (
+              <div
+                key={prod.id}
+                onClick={() => setProductoSeleccionado(prod)}
+                className="bg-slate-800 border border-slate-700 rounded-lg p-2 flex flex-col justify-between shadow hover:border-slate-500 transition-all overflow-hidden cursor-pointer hover:scale-[1.01]"
+              >
+                <div className="flex gap-2">
+                  <div className="w-14 h-14 shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden">
+                    {prod.imagenProducto ? (
+                      <img
+                        src={prod.imagenProducto}
+                        alt={prod.nombre}
+                        className="h-full object-contain p-1"
+                      />
+                    ) : (
+                      <span className="text-[9px] text-slate-500">
+                        Sin imagen
+                      </span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
+                      {prod.marca} -{" "}
+                      <span className="text-[10px] text-slate-400">
+                        {prod.contenido}
+                      </span>
+                    </span>
+                    <h3
+                      title={prod.nombre}
+                      className="font-medium text-slate-100 text-[11px]"
+                    >
+                      {prod.nombre}
+                    </h3>
+                    {prod.promocion && (
+                      <span className="inline-block mt-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-semibold px-1.5 py-0.5 rounded-md w-fit">
+                        🏷️ {prod.promocion}
+                      </span>
+                    )}
+                  </div>
+                </div>
 
-          <select
-            value={filtroContenido}
-            onChange={(e) => setFiltroContenido(e.target.value)}
-            className="w-1/2 bg-slate-800 border border-slate-700 text-slate-200 text-[11px] rounded-md p-1.5 focus:ring-1 focus:ring-red-500 focus:outline-none"
-          >
-            <option value="">Medida ({contenidosDisponibles.length})</option>
-            {contenidosDisponibles.map((cont, i) => (
-              <option key={i} value={cont}>
-                {cont}
-              </option>
+                {/* Pie de tarjeta: Precio por unidad/kilo a la izquierda / Precio final a la derecha */}
+                <div className="mt-1.5 pt-1.5 border-t border-slate-700/60 flex justify-between items-baseline gap-1">
+                  <div className="min-w-0 shrink">
+                    {prod.precioPorUnidad ? (
+                      <span className="block text-[12px] text-slate-400 font-medium truncate">
+                        {prod.precioPorUnidad}
+                      </span>
+                    ) : (
+                      <span className="block text-[12px] text-slate-500 italic">
+                        Sin acum.
+                      </span>
+                    )}
+                  </div>
+
+                  <span className="text-sm font-extrabold text-emerald-400 whitespace-nowrap text-right shrink-0">
+                    ${prod.precio.toLocaleString("es-AR")}
+                  </span>
+                </div>
+              </div>
             ))}
-          </select>
-        </div>
+          </div>
+        )}
       </div>
 
-      <div className="p-2">
-      {cargando ? (
-        <p className="text-center text-slate-400 text-xs py-4">Cargando...</p>
-      ) : (
-        <div className="flex flex-col gap-2">
-          {productosFiltrados.map((prod) => (
-            <div
-              key={prod.id}
-              className="bg-slate-800 border border-slate-700 rounded-lg p-2 flex flex-col justify-between shadow hover:border-slate-500 transition-all overflow-hidden"
+      {productoSeleccionado && (
+        <div
+          onClick={() => setProductoSeleccionado(null)}
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-lg w-full bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-2xl relative flex flex-col gap-4 text-white animate-fade-in"
+          >
+            <button
+              onClick={() => setProductoSeleccionado(null)}
+              className="absolute top-3 right-3 text-slate-400 hover:text-white text-lg leading-none z-10"
+              aria-label="Cerrar"
             >
-              <div className="flex gap-2">
-                <div className="w-14 h-14 shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden">
-                  {prod.imagenProducto ? (
-                    <img
-                      src={prod.imagenProducto}
-                      alt={prod.nombre}
-                      className="h-full object-contain p-1"
-                    />
-                  ) : (
-                    <span className="text-[9px] text-slate-500">
-                      Sin imagen
-                    </span>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
-                    {prod.marca}
-                  </span>
-                  <h3 className="font-medium text-slate-100 text-[11px] line-clamp-2">
-                    {prod.nombre}
-                  </h3>
-                </div>
-              </div>
+              ✕
+            </button>
 
-              {prod.promocion && (
-                <span className="inline-block mt-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-semibold px-1.5 py-0.5 rounded-md w-fit">
-                  🏷️ {prod.promocion}
-                </span>
-              )}
-
-              <div className="mt-1.5 pt-1.5 border-t border-slate-700/60 flex justify-between items-baseline">
-                <span className="text-[10px] text-slate-400">
-                  {prod.contenido}
-                </span>
-                <span className="text-sm font-extrabold text-emerald-400">
-                  ${prod.precio.toLocaleString("es-AR")}
-                </span>
-              </div>
-              {prod.precioPorUnidad && (
-                <span className="block text-right text-[10px] text-slate-400 font-medium">
-                  {prod.precioPorUnidad}
-                </span>
+            {/* Imagen Principal */}
+            <div className="w-full h-60 bg-white/5 rounded-lg flex items-center justify-center p-4">
+              {productoSeleccionado.imagenProducto ? (
+                <img
+                  src={productoSeleccionado.imagenProducto}
+                  alt={productoSeleccionado.nombre}
+                  className="h-full object-contain"
+                />
+              ) : (
+                <span className="text-xs text-slate-500">Sin imagen</span>
               )}
             </div>
-          ))}
+
+            {/* Información del Producto */}
+            <div>
+              <span className="block text-slate-400 text-xs uppercase font-semibold tracking-wider mb-1">
+                {productoSeleccionado.marca} - {productoSeleccionado.contenido}
+              </span>
+
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-100">
+                  {productoSeleccionado.nombre}
+                </h2>
+                {productoSeleccionado.promocion && (
+                  <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-semibold px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
+                    🏷️ {productoSeleccionado.promocion}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Precios y Enlace */}
+            <div className="flex justify-between items-end border-t border-slate-700/60 pt-3">
+              <div className="min-w-0">
+                {productoSeleccionado.precioPorUnidad ? (
+                  <span className="block text-xs text-slate-400 font-medium">
+                    {productoSeleccionado.precioPorUnidad}
+                  </span>
+                ) : (
+                  <span className="block text-xs text-slate-500 italic">
+                    Sin acum.
+                  </span>
+                )}
+              </div>
+              <span className="text-2xl font-extrabold text-emerald-400 whitespace-nowrap">
+                ${productoSeleccionado.precio.toLocaleString("es-AR")}
+              </span>
+            </div>
+
+            {productoSeleccionado.linkCompra && (
+              <a
+                href={productoSeleccionado.linkCompra}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-center bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold rounded-md py-2 transition-colors"
+              >
+                Ir a la tienda
+              </a>
+            )}
+          </div>
         </div>
       )}
-      </div>
     </div>
   );
 };

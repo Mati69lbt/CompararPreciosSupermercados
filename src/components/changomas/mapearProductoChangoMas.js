@@ -29,6 +29,44 @@ const extraerContenidoDeTexto = (texto = '') => {
   return '';
 };
 
+const formatearPrecio = (valor) =>
+  Number(valor).toLocaleString('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+
+// ChangoMás no trae precio por kilo/litro de origen: lo calculamos a partir
+// del precio final y del "contenido" ya extraído (ej: "1.5 L", "500 ML", "40 GR")
+const calcularPrecioPorUnidad = (precioFinal, contenido) => {
+  const precio = Number(precioFinal);
+  if (!precio || precio <= 0) return null;
+
+  if (!contenido || contenido === 'Sin especificar') {
+    return `${formatearPrecio(precio)} x 1 UNID`;
+  }
+
+  const match = contenido.match(/^(\d+(?:[.,]\d+)?)\s*(GR|KG|ML|L|UNID)$/i);
+  if (!match) return null;
+
+  const cantidad = parseFloat(match[1].replace(',', '.'));
+  const unidad = match[2].toUpperCase();
+
+  if (unidad === 'UNID') {
+    return `${formatearPrecio(precio)} x 1 UNID`;
+  }
+
+  const esPeso = unidad === 'GR' || unidad === 'KG';
+  const totalBase = unidad === 'KG' || unidad === 'L' ? cantidad * 1000 : cantidad;
+  if (!totalBase || totalBase <= 0) return null;
+
+  const unidadFinal = esPeso ? 'KG' : 'L';
+  const precioPorUnidad = (precio / totalBase) * 1000;
+
+  return `${formatearPrecio(precioPorUnidad)} x 1 ${unidadFinal}`;
+};
+
 export const mapearProductoChangoMas = (dataOriginal = []) => {
   if (!Array.isArray(dataOriginal)) return [];
 
@@ -36,7 +74,7 @@ export const mapearProductoChangoMas = (dataOriginal = []) => {
     .map((item) => {
       const id = item.productId || item.items?.[0]?.itemId || Math.random().toString(36).substr(2, 9);
       const nombre = item.productName || item.productTitle || item.items?.[0]?.nameComplete || 'Producto sin nombre';
-      const marca = item.brand || 'Sin marca';
+      const marca = (item.brand || 'Sin marca').toString().toUpperCase().trim();
 
       const seller = item.items?.[0]?.sellers?.[0]?.commertialOffer;
       const precioFinal = seller?.Price || seller?.ListPrice || 0;
@@ -63,6 +101,9 @@ export const mapearProductoChangoMas = (dataOriginal = []) => {
         promocion = 'En oferta';
       }
 
+      const contenidoFinal = contenido || 'Sin especificar';
+      const precioPorUnidad = calcularPrecioPorUnidad(precioFinal, contenidoFinal);
+
       return {
         id: `changomas-${id}`,
         tienda: 'changomas',
@@ -70,7 +111,8 @@ export const mapearProductoChangoMas = (dataOriginal = []) => {
         precio: Number(precioFinal),
         marca,
         categoria: item.categories?.[0]?.split('/')[1] || 'General',
-        contenido: contenido || 'Sin especificar',
+        contenido: contenidoFinal,
+        precioPorUnidad,
         promocion,
         imagenProducto,
         linkCompra: item.link || 'https://www.masonline.com.ar',

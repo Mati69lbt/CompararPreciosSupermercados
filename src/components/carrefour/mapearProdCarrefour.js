@@ -158,20 +158,23 @@ const obtenerContenidoDesdeGramaje = (item) => {
 // Solo usa metadatos VTEX (nunca altera p.contenido)
 const extraerPrecioPorUnidad = (item, precioFinal) => {
   const directo = item["Precio x unidad"]?.[0];
-  if (directo) return directo;
+  if (directo) return directo.replace(/[()]/g, "").trim();
+
 
   const leyenda =
     item["Gramaje leyenda de conversión"]?.[0] ||
     item["Gramaje descripción de medida"]?.[0];
-
-    console.log("extraerPrecioPorUnidad -> leyenda:", leyenda, );
 
   if (leyenda && precioFinal) {
     const precioFormateado = Number(precioFinal).toLocaleString("es-AR", {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     });
-    return `($${precioFormateado} x ${leyenda})`;
+    
+// Limpia paréntesis que puedan venir dentro del string de leyenda
+    const leyendaLimpia = leyenda.replace(/[()]/g, "").trim();
+    return `$${precioFormateado} x ${leyendaLimpia}`;
+  
   }
 
   return null;
@@ -184,7 +187,7 @@ export const mapearProductoCarrefour = (dataOriginal = []) => {
     .map((item) => {
       const id = item.productId || item.items?.[0]?.itemId || Math.random().toString(36).substr(2, 9);
       const nombre = item.productName || item['Descripción Genexis']?.[0] || 'Producto sin nombre';
-      const marca = item['Marca Gnx']?.[0] || item.brand || 'Sin marca';
+      const marca = (item['Marca Gnx']?.[0] || item.brand || 'Sin marca').toString().toUpperCase().trim();
 
       const seller = item.items?.[0]?.sellers?.[0]?.commertialOffer;
       const precioFinal = seller?.Price || seller?.ListPrice || 0;

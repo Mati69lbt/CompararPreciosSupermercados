@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { SUPERMARKET_LOGOS } from "./assets/logos/logos";
 import ProductsCoto from "./components/coto/ProductsCoto";
 import ProductsCarrefour from "./components/carrefour/ProductsCarrefour";
 import ProductsDia from "./components/Dia/ProductsDia";
 import ProductsChangoMas from "./components/changomas/ProductsChangoMas";
 import ProductsVea from "./components/vea/ProductsVea";
+import { RANGOS_CONTENIDO, obtenerRangoContenido } from "./utils/contenido";
 
 const TIENDAS = [
   {
@@ -43,27 +44,78 @@ export default function App() {
   const [input, setInput] = useState("");
   const [busqueda, setBusqueda] = useState("");
   const [conteos, setConteos] = useState({});
+  const [productosPorTienda, setProductosPorTienda] = useState({});
+
+  // Filtros globales
+  const [filtroContenidoGlobal, setFiltroContenidoGlobal] = useState("");
+  const [filtroMarcaGlobal, setFiltroMarcaGlobal] = useState("");
 
   const dispararBusqueda = () => {
     const termino = input.trim();
-    if (termino) setBusqueda(termino);
+    if (termino) {
+      setBusqueda(termino);
+      setFiltroContenidoGlobal("");
+      setFiltroMarcaGlobal("");
+      setProductosPorTienda({});
+    }
   };
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter") dispararBusqueda();
   };
 
+  const todosLosProductos = useMemo(
+    () => Object.values(productosPorTienda).flat(),
+    [productosPorTienda],
+  );
+
+  // Medidas únicas disponibles en todos los resultados
+  const medidasDisponiblesGlobal = useMemo(() => {
+    const rangos = new Set(
+      todosLosProductos.map((p) => obtenerRangoContenido(p.contenido)),
+    );
+    return RANGOS_CONTENIDO.filter((r) => rangos.has(r));
+  }, [todosLosProductos]);
+
+  // Marcas únicas disponibles, filtradas en cascada según la medida seleccionada
+  const marcasDisponiblesGlobal = useMemo(() => {
+    const productosParaMarcas = filtroContenidoGlobal
+      ? todosLosProductos.filter(
+          (p) => obtenerRangoContenido(p.contenido) === filtroContenidoGlobal,
+        )
+      : todosLosProductos;
+
+    const marcas = productosParaMarcas
+      .map((p) => p.marca?.toUpperCase().trim())
+      .filter((m) => m && m !== "SIN MARCA");
+    return [...new Set(marcas)].sort((a, b) =>
+      a.localeCompare(b, "es", { sensitivity: "base" }),
+    );
+  }, [todosLosProductos, filtroContenidoGlobal]);
+
+  const handleContenidoChange = (e) => {
+    setFiltroContenidoGlobal(e.target.value);
+    setFiltroMarcaGlobal("");
+  };
+
+  const handleProductosTienda = (key, productos) => {
+    setProductosPorTienda((prev) => {
+      if (prev[key] === productos) return prev;
+      return { ...prev, [key]: productos };
+    });
+  };
+
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       <header className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur border-b border-slate-800 p-4">
-        <div className="max-w-3xl mx-auto flex gap-2">
+        <div className="max-w-3xl mx-auto flex flex-wrap gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Buscar producto (ej: leche, arroz, fideos)..."
-            className="flex-1 bg-slate-800 border border-slate-700 text-slate-100 text-sm rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+            className="flex-1 min-w-[200px] bg-slate-800 border border-slate-700 text-slate-100 text-sm rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
           />
           <button
             onClick={dispararBusqueda}
@@ -71,6 +123,36 @@ export default function App() {
           >
             Buscar
           </button>
+
+          <select
+            value={filtroContenidoGlobal}
+            onChange={handleContenidoChange}
+            disabled={!busqueda}
+            className="bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50"
+          >
+            <option value="">Medida ({medidasDisponiblesGlobal.length})</option>
+            {[...medidasDisponiblesGlobal]
+              .sort((a, b) => a.localeCompare(b, "es", { sensitivity: "base" }))
+              .map((cont, i) => (
+                <option key={i} value={cont}>
+                  {cont}
+                </option>
+              ))}
+          </select>
+
+          <select
+            value={filtroMarcaGlobal}
+            onChange={(e) => setFiltroMarcaGlobal(e.target.value)}
+            disabled={!busqueda}
+            className="bg-slate-800 border border-slate-700 text-slate-200 text-sm rounded-lg px-3 py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50"
+          >
+            <option value="">Marca ({marcasDisponiblesGlobal.length})</option>
+            {marcasDisponiblesGlobal.map((marca, i) => (
+              <option key={i} value={marca}>
+                {marca}
+              </option>
+            ))}
+          </select>
         </div>
       </header>
 
@@ -103,10 +185,15 @@ export default function App() {
                 <div className="flex-1 lg:overflow-y-auto lg:min-h-0 scroll-tienda">
                   <Componente
                     busqueda={busqueda}
+                    filtroContenido={filtroContenidoGlobal}
+                    filtroMarca={filtroMarcaGlobal}
                     onCount={(n) =>
                       setConteos((prev) =>
                         prev[key] === n ? prev : { ...prev, [key]: n },
                       )
+                    }
+                    onProducts={(productos) =>
+                      handleProductosTienda(key, productos)
                     }
                   />
                 </div>

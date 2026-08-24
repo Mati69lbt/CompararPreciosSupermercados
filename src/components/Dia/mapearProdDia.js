@@ -42,8 +42,6 @@ const normalizarUnidadMedida = (unidad = '') => {
 const formatearPrecioPorUnidad = (precioPorUnd, unidadMedida) => {
   const valor = Number(precioPorUnd);
 
-  console.log("formatearPrecioPorUnidad -> precioPorUnd:", precioPorUnd, "unidadMedida:", unidadMedida, "valor:", valor);
-
   if (!precioPorUnd || Number.isNaN(valor) || valor <= 0) return null;
 
   const precioFormateado = valor.toLocaleString('es-AR', {
@@ -55,8 +53,6 @@ const formatearPrecioPorUnidad = (precioPorUnd, unidadMedida) => {
 
   const unidad = normalizarUnidadMedida(unidadMedida || '');
 
- console.log(`${precioFormateado} x  ${unidad}`)  
-
   return `${precioFormateado} x  ${unidad}`;
 };
 
@@ -67,7 +63,7 @@ export const mapearProductoDia = (dataOriginal = []) => {
     .map((item) => {
       const id = item.productId || item.items?.[0]?.itemId || Math.random().toString(36).substr(2, 9);
       const nombre = item.productName || item.productTitle || 'Producto sin nombre';
-      const marca = item.brand || 'Sin marca';
+      const marca = (item.brand || 'Sin marca').toString().toUpperCase().trim();
 
       const seller = item.items?.[0]?.sellers?.[0]?.commertialOffer;
       const precioFinal = seller?.Price || seller?.ListPrice || 0;
