@@ -9,8 +9,9 @@ npm run dev       # servidor de desarrollo (Vite)
 npm run build     # build de producción
 npm run preview   # sirve el build de producción
 npm run lint      # ESLint sobre todo el repo
-npm run deploy    # publica dist/ en GitHub Pages (gh-pages)
 ```
+
+Deploy: proyecto en Vercel (build de Vite + función serverless `api/proxy.js`). Push a `main` dispara el deploy.
 
 No hay suite de tests configurada.
 
@@ -47,7 +48,7 @@ Cada supermercado tiene su carpeta en `src/components/<tienda>/` con dos archivo
 - **Coto**: API BFF propia (`api.coto.com.ar/.../products/search/...`), estructura `response.results[].data`, precio por sucursal (array `price` filtrado por `VITE_API_COTO_STORE`).
 - **Mercado Libre**: API pública, requiere OAuth (`VITE_MELI_CLIENT_ID` / `VITE_MELI_CLIENT_SECRET`).
 
-En dev, `src/utils/apiConfig.js` arma las URLs contra los proxies locales (`vite.config.js`); en producción pasa por un CORS proxy público (`corsproxy.io`) ya que no hay backend propio.
+En dev, `src/utils/apiConfig.js` arma las URLs contra los proxies locales (`vite.config.js`); en producción pasa por `api/proxy.js`, una función serverless de Vercel que reenvía la petición con headers propios (`User-Agent`, `Accept`) y habilita CORS, evitando los bloqueos 403 de proxies públicos.
 
 ### Extracción de contenido/medida
 
