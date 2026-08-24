@@ -27,12 +27,15 @@ const ProductsCarrefour = ({
       const peticiones = paginasACargar.map((pageIndex) => {
         const from = pageIndex * PRODUCTOS_POR_PAGINA;
         const to = from + PRODUCTOS_POR_PAGINA - 1;
-        return fetch(getApiUrl("carrefour", `/${termino}?_from=${from}&_to=${to}`))
+        return fetch(
+          getApiUrl("carrefour", `/${termino}?_from=${from}&_to=${to}`),
+        )
           .then((res) => res.json())
           .catch(() => []);
       });
 
       const resultados = await Promise.all(peticiones);
+
 
       // Aplanamos los resultados de las 4 páginas en un solo array
       const todosRaw = resultados.flat();
@@ -76,7 +79,9 @@ const ProductsCarrefour = ({
   const productosFiltrados = useMemo(() => {
     return productos
       .filter((p) => {
-        const coincideMarca = filtroMarca ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim() : true;
+        const coincideMarca = filtroMarca
+          ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim()
+          : true;
         const coincideContenido = filtroContenido
           ? obtenerRangoContenido(p.contenido) === filtroContenido
           : true;
@@ -117,15 +122,19 @@ const ProductsCarrefour = ({
                     )}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
-                      {prod.marca} -{" "}
+                    <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold">
+                      {prod.marca}
+                      {/* Salto de línea solo en pantallas pequeñas (mobile) */}
+                      <br className="block sm:hidden" />
+                      {/* Guión medio a partir de pantallas pequeñas/medianas */}
+                      <span className="hidden sm:inline"> - </span>
                       <span className="text-[10px] text-slate-400">
                         {prod.contenido}
                       </span>
                     </span>
                     <h3
                       title={prod.nombre}
-                      className="font-medium text-slate-100 text-[11px]"
+                      className="font-medium text-slate-100 text-[11px] line-clamp-3"
                     >
                       {prod.nombre}
                     </h3>

@@ -24,12 +24,37 @@ const extraerYNormalizarContenido = (nombre) => {
   return `${cantidad} ${unidad}`;
 };
 
+// Extrae la cantidad de unidades de un título tipo "x 8", "8 ud", "8 uni",
+// "paq 8", "8 unid", "8 unidades"
+const extraerUnidadesDesdeTitulo = (nombre) => {
+  if (!nombre) return null;
+
+  let match = nombre.match(/x\s*(\d+)\b/i);
+  if (match) return parseInt(match[1], 10);
+
+  match = nombre.match(/paq\.?\s*(\d+)\b/i);
+  if (match) return parseInt(match[1], 10);
+
+  match = nombre.match(/(\d+)\s*(?:unidades|unid|uni|ud|u)\b/i);
+  if (match) return parseInt(match[1], 10);
+
+  return null;
+};
+
 const formatearPrecio = (valor) =>
   Number(valor).toLocaleString('es-AR', {
     style: 'currency',
     currency: 'ARS',
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
+  });
+
+const formatearPrecioDecimal = (valor) =>
+  Number(valor).toLocaleString('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
   });
 
 // Calcula el precio por kilo/litro a partir del precio final y del "contenido"
@@ -49,7 +74,8 @@ const calcularPrecioPorUnidad = (precioFinal, contenido) => {
   const unidad = match[2].toUpperCase();
 
   if (unidad === 'UNID') {
-    return `${formatearPrecio(precio)} x 1 UNID`;
+    if (!cantidad || cantidad <= 0) return `${formatearPrecio(precio)} x 1 UNID`;
+    return `${formatearPrecioDecimal(precio / cantidad)} x 1 UNID`;
   }
 
   const esPeso = unidad === 'GR' || unidad === 'KG';
@@ -78,8 +104,13 @@ export const mapearProductoCoto = (dataOriginal) => {
     // Extracción de Marca
     const marca = (d.product_brand || "Sin marca").toString().toUpperCase().trim();
 
-    // Extraer y homogenizar contenido directamente del título
-    const contenido = extraerYNormalizarContenido(nombre);
+    // Extraer y homogenizar contenido directamente del título (peso/volumen).
+    // Si no hay peso/volumen, se usa el número de unidades del título (x N, paq N, N ud/uni/unid).
+    let contenido = extraerYNormalizarContenido(nombre);
+    if (contenido === "Sin especificar") {
+      const unidades = extraerUnidadesDesdeTitulo(nombre);
+      if (unidades && unidades > 0) contenido = `${unidades} UNID`;
+    }
 
     const imagenProducto = d.image_url || d.product_large_image_url || "";
     

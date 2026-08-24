@@ -3,31 +3,38 @@
 const extraerContenidoDeTexto = (texto = '') => {
   if (!texto) return '';
 
-  // Esta RegEx busca números seguidos de unidades.
-  // La unidad solo matchea si va precedida de un número y no es parte de otra palabra
-  // (evita falsos positivos como "leche"/"dulce" siendo interpretados como litros).
-  const regex = /(\d+(?:[\.,]\d+)?)\s*(lts?|litros?|ml|cc|cm3|grs?|gramos?|kgs?|kilos?|u|unid|unidades?|\bgr\b|\bkg\b|\bml\b|\bl\b)(?!\w)/i;
-  const match = texto.match(regex);
+  // 1. Prioridad: Peso y Volumen (GR, KG, ML, L)
+  const regexMedida = /(\d+(?:[\.,]\d+)?)\s*(lts?|litros?|ml|cc|cm3|grs?|gramos?|kgs?|kilos?|\bgr\b|\bkg\b|\bml\b|\bl\b)(?!\w)/i;
+  const matchMedida = texto.match(regexMedida);
 
-  if (match) {
-    let cantidad = match[1].replace(',', '.');
+  if (matchMedida) {
+    let cantidad = matchMedida[1].replace(',', '.');
     if (cantidad.endsWith('.0')) {
       cantidad = cantidad.replace('.0', '');
     }
 
-    let unidad = match[2].toLowerCase();
+    let unidad = matchMedida[2].toLowerCase();
 
     if (['l', 'lt', 'lts', 'litro', 'litros'].includes(unidad)) unidad = 'L';
     else if (['ml', 'cc', 'cm3'].includes(unidad)) unidad = 'ML';
     else if (['g', 'gr', 'grs', 'gramos'].includes(unidad)) unidad = 'GR';
     else if (['kg', 'kilo', 'kilos'].includes(unidad)) unidad = 'KG';
-    else if (['u', 'unid', 'unidades'].includes(unidad)) unidad = 'UNID';
-    else unidad = unidad.toUpperCase();
 
     return `${cantidad} ${unidad}`;
   }
 
-  return '';
+  // 2. Si no es peso/volumen, tomamos el primer número suelto del título
+  // como cantidad de unidades del pack (ej: "Jabón x8" -> 8, "Yogur 4" -> 4).
+  // Si no hay ningún número, se considera 1 unidad.
+  const matchNumero = texto.match(/\d+/);
+  if (matchNumero) {
+    const cantidad = parseInt(matchNumero[0], 10);
+    if (!Number.isNaN(cantidad) && cantidad > 0) {
+      return `${cantidad} UNID`;
+    }
+  }
+
+  return '1 UNID';
 };
 
 // Familia a la que pertenece cada unidad normalizada, para detectar contaminación GR/KG vs L/ML
@@ -162,6 +169,14 @@ const calcularPrecioPorUnidad = (precioFinal, contenido) => {
   const unidad = match[2].toUpperCase();
 
   if (unidad === 'UNID') {
+    if (cantidad > 1) {
+      const precioUnitario = precio / cantidad;
+      const formateado = precioUnitario.toLocaleString('es-AR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      return `$${formateado} x 1 UNID`;
+    }
     return `${formatearPrecio(precio)} x 1 UNID`;
   }
 

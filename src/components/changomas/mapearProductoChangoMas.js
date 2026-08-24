@@ -29,6 +29,44 @@ const extraerContenidoDeTexto = (texto = '') => {
   return '';
 };
 
+const primero = (valor) => (Array.isArray(valor) ? valor[0] : valor);
+
+const obtenerContenidoDesdeGramaje = (item) => {
+  const contenidoBruto =
+    primero(item['Unidad de medida']) ||
+    primero(item['Contenido Neto']) ||
+    primero(item['Gramaje']) ||
+    '';
+  return extraerContenidoDeTexto(contenidoBruto);
+};
+
+// ChangoMás informa la cantidad exacta de unidades (paquetes/packs) en
+// "Gramaje factor de conversión" cuando "Gramaje de unidad de medida" es UNI/UNID/UD/UN.
+// Ese dato es más confiable que intentar parsearlo del nombre o de otros atributos.
+const obtenerContenidoChangoMas = (item, nombre) => {
+  const unidadMedidaRaw = primero(item['Gramaje de unidad de medida']) || '';
+  const factorConversionRaw = primero(item['Gramaje factor de conversión']);
+
+  const unidadClean = unidadMedidaRaw.toString().trim().toUpperCase();
+
+  if (['UNI', 'UNID', 'UD', 'UN'].includes(unidadClean)) {
+    if (factorConversionRaw) {
+      const cantidad = parseFloat(String(factorConversionRaw).replace(',', '.'));
+      if (!Number.isNaN(cantidad) && cantidad > 0) {
+        return `${Math.round(cantidad)} UNID`;
+      }
+    }
+  }
+
+  const contenidoNombre = extraerContenidoDeTexto(nombre);
+  if (contenidoNombre) return contenidoNombre;
+
+  const contenidoGramaje = obtenerContenidoDesdeGramaje(item);
+  if (contenidoGramaje) return contenidoGramaje;
+
+  return '';
+};
+
 const formatearPrecio = (valor) =>
   Number(valor).toLocaleString('es-AR', {
     style: 'currency',
@@ -54,6 +92,14 @@ const calcularPrecioPorUnidad = (precioFinal, contenido) => {
   const unidad = match[2].toUpperCase();
 
   if (unidad === 'UNID') {
+    if (cantidad > 1) {
+      const precioUnitario = precio / cantidad;
+      const formateado = precioUnitario.toLocaleString('es-AR', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+      return `$${formateado} x 1 UNID`;
+    }
     return `${formatearPrecio(precio)} x 1 UNID`;
   }
 
@@ -80,19 +126,7 @@ export const mapearProductoChangoMas = (dataOriginal = []) => {
       const precioFinal = seller?.Price || seller?.ListPrice || 0;
       const imagenProducto = item.items?.[0]?.images?.[0]?.imageUrl || '';
 
-      // PRIORIDAD 1: Extraer la medida REAL del NOMBRE del producto
-      // Priorizar el nombre evita que metadatos defectuosos cataloguen un alfajor o 200ml como "1 L"
-      let contenido = extraerContenidoDeTexto(nombre);
-
-      // PRIORIDAD 2: Solo si en el nombre no había medida, probar con los atributos
-      if (!contenido) {
-        const contenidoBruto =
-          item['Unidad de medida']?.[0] ||
-          item['Contenido Neto']?.[0] ||
-          item['Gramaje']?.[0] ||
-          '';
-        contenido = extraerContenidoDeTexto(contenidoBruto);
-      }
+      const contenido = obtenerContenidoChangoMas(item, nombre);
 
       let promocion = null;
       if (seller?.Teasers && seller.Teasers.length > 0) {

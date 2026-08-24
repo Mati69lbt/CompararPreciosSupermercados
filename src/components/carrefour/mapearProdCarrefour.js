@@ -136,7 +136,14 @@ const obtenerContenidoDesdeGramaje = (item) => {
   let cantidad = parseFloat(String(cantidadRaw).replace(',', '.'));
   if (Number.isNaN(cantidad)) return null;
 
-  let unidad = UNIDAD_MEDIDA_VTEX[unidadRaw.toUpperCase()];
+  const unidadClean = unidadRaw.toUpperCase();
+
+  if (unidadClean === 'UNI' || unidadClean === 'UNID') {
+    const cantidadInt = Math.round(cantidad);
+    return `${cantidadInt} UNID`;
+  }
+
+  let unidad = UNIDAD_MEDIDA_VTEX[unidadClean];
   if (!unidad) return null;
 
   if (unidad === 'GR' && cantidad >= 1000) {

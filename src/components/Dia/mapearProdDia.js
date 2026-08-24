@@ -27,6 +27,32 @@ const extraerContenidoDeTexto = (texto = '') => {
   return '';
 };
 
+// Fallback: busca cantidad de unidades en el título (ej: "Pañales x36 uds", "Toallitas... 8 Ud.")
+const contarUnidadesDesdeTitulo = (texto = '') => {
+  if (!texto) return null;
+  // Captura formatos como: x36, 36u, 36 un, 36unid, 36 uds, 36 unidades, 8 Ud.
+  const match = texto.match(/(?:x|\b)(\d+)\s*(?:u|ud|uds|un|unid|unidades)\b/i);
+  if (match && parseInt(match[1], 10) > 1) {
+    return `${match[1]} UNID`;
+  }
+  return null;
+};
+
+// Descarta "1 UD" / "1 UN" / "1 UNID": no es una cantidad real, es el envase entero
+const esContenidoUnitarioInvalido = (contenido) =>
+  !!contenido && /^1\s*(ud|un|unid)\.?$/i.test(contenido.trim());
+
+// REGLA PRINCIPAL E INELUDIBLE: cuando la unidad de medida es de tipo "unidad" (UD/UN),
+// la única fuente de verdad es la división precio final / precio por unidad.
+// El título no siempre trae la cantidad real y la regex de texto falla.
+const calcularUnidadesExactas = (precioFinal, precioPorUnd) => {
+  const pf = Number(precioFinal);
+  const ppu = Number(precioPorUnd);
+  if (!pf || !ppu || Number.isNaN(pf) || Number.isNaN(ppu) || ppu <= 0) return null;
+  const unidades = Math.round(pf / ppu);
+  return unidades > 0 ? `${unidades} UNID` : null;
+};
+
 const normalizarUnidadMedida = (unidad = '') => {
   const u = unidad.trim().toLowerCase();
 
@@ -69,22 +95,40 @@ export const mapearProductoDia = (dataOriginal = []) => {
       const precioFinal = seller?.Price || seller?.ListPrice || 0;
       const imagenProducto = item.items?.[0]?.images?.[0]?.imageUrl || '';
 
-      // PRIORIDAD 1: Extraer desde el NOMBRE del producto
-      let contenido = extraerContenidoDeTexto(nombre);
+      const precioPorUnd = item['PrecioPorUnd']?.[0] ?? item.PrecioPorUnd;
+      const unidadDeMedida = (item['UnidaddeMedida']?.[0] ?? item.UnidaddeMedida ?? '')
+        .toString()
+        .trim()
+        .toUpperCase();
+      const precioPorUnidad = formatearPrecioPorUnidad(precioPorUnd, unidadDeMedida);
+      const esUnidadTipoUnidad = unidadDeMedida.includes('UD') || unidadDeMedida.includes('UN');
 
-      // PRIORIDAD 2: Si no estaba en el nombre, buscar en los atributos de Día
+      let contenido = null;
+
+      // PRIORIDAD 1 (obligatoria): si es un producto por unidad, calcular por división.
+      if (esUnidadTipoUnidad) {
+        contenido = calcularUnidadesExactas(precioFinal, precioPorUnd);
+      }
+
+      // PRIORIDAD 2: extraer la cantidad real desde el título comercial
+      if (!contenido) {
+        contenido = contarUnidadesDesdeTitulo(nombre) || extraerContenidoDeTexto(nombre) || null;
+      }
+
+      // PRIORIDAD 3: recién si todo lo anterior falló, usar los metadatos globales
       if (!contenido) {
         const contenidoBruto =
           item['UnidaddeMedida']?.[0] ||
           item['Contenido Neto']?.[0] ||
           item['Presentacion']?.[0] ||
           '';
-        contenido = extraerContenidoDeTexto(contenidoBruto) || contenidoBruto;
+        contenido = extraerContenidoDeTexto(contenidoBruto) || contenidoBruto || null;
       }
 
-      const precioPorUnd = item['PrecioPorUnd']?.[0] ?? item.PrecioPorUnd;
-      const unidadDeMedida = item['UnidaddeMedida']?.[0] ?? item.UnidaddeMedida;
-      const precioPorUnidad = formatearPrecioPorUnidad(precioPorUnd, unidadDeMedida);
+      // Limpieza final: solo aplica si el contenido NO vino del cálculo estricto por división
+      if (!esUnidadTipoUnidad && esContenidoUnitarioInvalido(contenido)) {
+        contenido = contarUnidadesDesdeTitulo(nombre) || null;
+      }
 
       let promocion = null;
       if (seller?.Teasers && seller.Teasers.length > 0) {

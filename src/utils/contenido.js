@@ -9,19 +9,36 @@ export const RANGOS_CONTENIDO = [
   "500 ML a 1 L",
   "1 L",
   "Más de 1 L",
+  "Menos de 10 un",
+  "10 a 20 un",
+  "20 a 30 un",
+  "Más de 30 un",
   "Unidades / Sin especificar",
 ];
+
+// Etiquetas de rango por cantidad de unidades (ej: Carrefour, productos vendidos por UNI)
+const RANGOS_UNIDADES = ["Menos de 10 un", "10 a 20 un", "20 a 30 un", "Más de 30 un"];
 
 // Convierte "1,5 L" / "800 GR" / "2 KG" a un rango de Peso o Volumen, sin mezclar familias
 export const obtenerRangoContenido = (contenido) => {
   if (!contenido || contenido === "Sin especificar")
     return "Unidades / Sin especificar";
 
-  const match = contenido.match(/^(\d+(?:[.,]\d+)?)\s*(GR|KG|ML|L)$/i);
+  if (RANGOS_UNIDADES.includes(contenido)) return contenido;
+
+  const match = contenido.match(/^(\d+(?:[.,]\d+)?)\s*(GR|KG|ML|L|UNID)$/i);
   if (!match) return "Unidades / Sin especificar";
 
   const cantidad = parseFloat(match[1].replace(",", "."));
   const unidad = match[2].toUpperCase();
+
+  if (unidad === "UNID") {
+    if (cantidad < 10) return "Menos de 10 un";
+    if (cantidad < 20) return "10 a 20 un";
+    if (cantidad < 30) return "20 a 30 un";
+    return "Más de 30 un";
+  }
+
   const esPeso = unidad === "GR" || unidad === "KG";
   const equivalente =
     unidad === "KG" || unidad === "L" ? cantidad * 1000 : cantidad;

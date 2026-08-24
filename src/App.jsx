@@ -77,20 +77,25 @@ export default function App() {
     return RANGOS_CONTENIDO.filter((r) => rangos.has(r));
   }, [todosLosProductos]);
 
-  // Marcas únicas disponibles, filtradas en cascada según la medida seleccionada
-  const marcasDisponiblesGlobal = useMemo(() => {
+  // Marcas disponibles con conteo de productos, filtradas en cascada según la medida seleccionada
+  const marcasConConteo = useMemo(() => {
     const productosParaMarcas = filtroContenidoGlobal
       ? todosLosProductos.filter(
           (p) => obtenerRangoContenido(p.contenido) === filtroContenidoGlobal,
         )
       : todosLosProductos;
 
-    const marcas = productosParaMarcas
-      .map((p) => p.marca?.toUpperCase().trim())
-      .filter((m) => m && m !== "SIN MARCA");
-    return [...new Set(marcas)].sort((a, b) =>
-      a.localeCompare(b, "es", { sensitivity: "base" }),
-    );
+    const conteoMap = new Map();
+    productosParaMarcas.forEach((p) => {
+      const marcaClean = p.marca?.toUpperCase().trim();
+      if (marcaClean && marcaClean !== "SIN MARCA") {
+        conteoMap.set(marcaClean, (conteoMap.get(marcaClean) || 0) + 1);
+      }
+    });
+
+    return Array.from(conteoMap.entries())
+      .map(([nombre, cantidad]) => ({ nombre, cantidad }))
+      .sort((a, b) => a.nombre.localeCompare(b.nombre, "es", { sensitivity: "base" }));
   }, [todosLosProductos, filtroContenidoGlobal]);
 
   const handleContenidoChange = (e) => {
@@ -108,30 +113,30 @@ export default function App() {
   return (
     <div className="min-h-screen bg-slate-900 text-white">
       <header className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur border-b border-slate-800 p-2 sm:p-4">
-        <div className="max-w-3xl mx-auto grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
-          <div className="flex flex-col gap-1.5 min-w-0">
+        <div className="max-w-3xl mx-auto grid grid-cols-2 gap-2 md:flex md:flex-row md:items-center md:gap-3">
+          <div className="flex flex-col gap-1.5 min-w-0 md:contents">
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="Buscar producto..."
-              className="sm:flex-1 sm:min-w-[200px] bg-slate-800 border border-slate-700 text-slate-100 text-xs sm:text-sm rounded-lg px-3 sm:px-4 h-9 sm:h-auto sm:py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+              className="md:order-1 md:flex-1 md:min-w-[200px] bg-slate-800 border border-slate-700 text-slate-100 text-xs md:text-sm rounded-lg px-3 md:px-4 h-9 md:h-auto md:py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none"
             />
             <button
               onClick={dispararBusqueda}
-              className="sm:hidden bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-3 h-9 rounded-lg transition-colors"
+              className="md:order-2 md:flex-none md:w-auto bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs md:text-sm px-3 md:px-5 h-9 md:h-auto md:py-2.5 rounded-lg transition-colors"
             >
               Buscar
             </button>
           </div>
 
-          <div className="flex flex-col gap-1.5 min-w-0">
+          <div className="flex flex-col gap-1.5 min-w-0 md:contents">
             <select
               value={filtroContenidoGlobal}
               onChange={handleContenidoChange}
               disabled={!busqueda}
-              className="bg-slate-800 border border-slate-700 text-slate-200 text-xs sm:text-sm rounded-lg px-2 sm:px-3 h-9 sm:h-auto sm:py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50 min-w-0"
+              className="md:order-3 md:flex-none md:w-auto bg-slate-800 border border-slate-700 text-slate-200 text-xs md:text-sm rounded-lg px-2 md:px-3 h-9 md:h-auto md:py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50 min-w-0"
             >
               <option value="">Medida ({medidasDisponiblesGlobal.length})</option>
               {[...medidasDisponiblesGlobal]
@@ -147,23 +152,16 @@ export default function App() {
               value={filtroMarcaGlobal}
               onChange={(e) => setFiltroMarcaGlobal(e.target.value)}
               disabled={!busqueda}
-              className="bg-slate-800 border border-slate-700 text-slate-200 text-xs sm:text-sm rounded-lg px-2 sm:px-3 h-9 sm:h-auto sm:py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50 min-w-0"
+              className="md:order-4 md:flex-none md:w-auto bg-slate-800 border border-slate-700 text-slate-200 text-xs md:text-sm rounded-lg px-2 md:px-3 h-9 md:h-auto md:py-2.5 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50 min-w-0"
             >
-              <option value="">Marca ({marcasDisponiblesGlobal.length})</option>
-              {marcasDisponiblesGlobal.map((marca, i) => (
-                <option key={i} value={marca}>
-                  {marca}
+              <option value="">Marca ({marcasConConteo.length})</option>
+              {marcasConConteo.map(({ nombre, cantidad }, i) => (
+                <option key={i} value={nombre}>
+                  {nombre} ({cantidad})
                 </option>
               ))}
             </select>
           </div>
-
-          <button
-            onClick={dispararBusqueda}
-            className="hidden sm:block bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-sm px-5 py-2.5 rounded-lg transition-colors"
-          >
-            Buscar
-          </button>
         </div>
       </header>
 

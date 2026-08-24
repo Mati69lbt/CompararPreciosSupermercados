@@ -68,7 +68,9 @@ const ProductsDia = ({
   const productosFiltrados = useMemo(() => {
     return productos
       .filter((p) => {
-        const coincideMarca = filtroMarca ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim() : true;
+        const coincideMarca = filtroMarca
+          ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim()
+          : true;
         const coincideContenido = filtroContenido
           ? obtenerRangoContenido(p.contenido) === filtroContenido
           : true;
@@ -110,14 +112,21 @@ const ProductsDia = ({
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
-                      {prod.marca} -{" "}
-                      <span className="text-[10px] text-slate-400">
-                        {prod.contenido}
-                      </span>
+                      {prod.marca}
+                      {prod.contenido &&
+                        prod.contenido !== "Sin especificar" && (
+                          <>
+                            <br className="block sm:hidden" />
+                            <span className="hidden sm:inline"> - </span>
+                            <span className="text-slate-400 font-bold">
+                              {prod.contenido}
+                            </span>
+                          </>
+                        )}
                     </span>
                     <h3
                       title={prod.nombre}
-                      className="font-medium text-slate-100 text-[11px]"
+                      className="font-medium text-slate-100 text-[11px] line-clamp-3"
                     >
                       {prod.nombre}
                     </h3>

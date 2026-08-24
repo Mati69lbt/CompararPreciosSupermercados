@@ -25,13 +25,15 @@ const ProductsChangoMas = ({
       const peticiones = paginasACargar.map((pageIndex) => {
         const from = pageIndex * PRODUCTOS_POR_PAGINA;
         const to = from + PRODUCTOS_POR_PAGINA - 1;
-        return fetch(getApiUrl("changomas", `?ft=${termino}&_from=${from}&_to=${to}`))
+        return fetch(
+          getApiUrl("changomas", `?ft=${termino}&_from=${from}&_to=${to}`),
+        )
           .then((res) => res.json())
           .catch(() => []);
       });
 
       const resultados = await Promise.all(peticiones);
-      
+
       const todosRaw = resultados.flat();
 
       if (Array.isArray(todosRaw) && todosRaw.length > 0) {
@@ -41,7 +43,11 @@ const ProductsChangoMas = ({
             SUPERMARKET_LOGOS.changomas || SUPERMARKET_LOGOS.masonline,
         }));
 
-        setProductos(productosLimpios);
+        const productosUnicos = Array.from(
+          new Map(productosLimpios.map((p) => [p.id, p])).values(),
+        );
+
+        setProductos(productosUnicos);
       } else {
         setProductos([]);
       }
@@ -69,7 +75,9 @@ const ProductsChangoMas = ({
   const productosFiltrados = useMemo(() => {
     return productos
       .filter((p) => {
-        const coincideMarca = filtroMarca ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim() : true;
+        const coincideMarca = filtroMarca
+          ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim()
+          : true;
         const coincideContenido = filtroContenido
           ? obtenerRangoContenido(p.contenido) === filtroContenido
           : true;
@@ -111,14 +119,21 @@ const ProductsChangoMas = ({
                   </div>
                   <div className="min-w-0 flex-1">
                     <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
-                      {prod.marca} -{" "}
-                      <span className="text-[10px] text-slate-400">
-                        {prod.contenido}
-                      </span>
+                      {prod.marca}
+                      {prod.contenido &&
+                        prod.contenido !== "Sin especificar" && (
+                          <>
+                            <br className="block sm:hidden" />
+                            <span className="hidden sm:inline"> - </span>
+                            <span className="text-slate-400 font-bold">
+                              {prod.contenido}
+                            </span>
+                          </>
+                        )}
                     </span>
                     <h3
                       title={prod.nombre}
-                      className="font-medium text-slate-100 text-[11px]"
+                      className="font-medium text-slate-100 text-[11px] line-clamp-3"
                     >
                       {prod.nombre}
                     </h3>
@@ -155,85 +170,85 @@ const ProductsChangoMas = ({
       </div>
 
       {productoSeleccionado && (
-  <div
-    onClick={() => setProductoSeleccionado(null)}
-    className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
-  >
-    <div
-      onClick={(e) => e.stopPropagation()}
-      className="max-w-lg w-full bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-2xl relative flex flex-col gap-4 text-white animate-fade-in"
-    >
-      <button
-        onClick={() => setProductoSeleccionado(null)}
-        className="absolute top-3 right-3 text-slate-400 hover:text-white text-lg leading-none z-10"
-        aria-label="Cerrar"
-      >
-        ✕
-      </button>
-
-      {/* Imagen Principal */}
-      <div className="w-full h-60 bg-white/5 rounded-lg flex items-center justify-center p-4">
-        {productoSeleccionado.imagenProducto ? (
-          <img
-            src={productoSeleccionado.imagenProducto}
-            alt={productoSeleccionado.nombre}
-            className="h-full object-contain"
-          />
-        ) : (
-          <span className="text-xs text-slate-500">Sin imagen</span>
-        )}
-      </div>
-
-      {/* Información del Producto */}
-      <div>
-        <span className="block text-slate-400 text-xs uppercase font-semibold tracking-wider mb-1">
-          {productoSeleccionado.marca} - {productoSeleccionado.contenido}
-        </span>
-
-        {/* Contenedor Flex para mantener Título y Promo en la misma línea */}
-        <div className="flex flex-wrap items-center gap-2">
-          <h2 className="text-lg font-bold text-slate-100">
-            {productoSeleccionado.nombre}
-          </h2>
-          {productoSeleccionado.promocion && (
-            <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-semibold px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
-              🏷️ {productoSeleccionado.promocion}
-            </span>
-          )}
-        </div>
-      </div>
-
-      {/* Precios y Botón */}
-      <div className="flex justify-between items-end border-t border-slate-700/60 pt-3">
-        <div className="min-w-0">
-          {productoSeleccionado.precioPorUnidad ? (
-            <span className="block text-xs text-slate-400 font-medium">
-              {productoSeleccionado.precioPorUnidad}
-            </span>
-          ) : (
-            <span className="block text-xs text-slate-500 italic">
-              Sin acum.
-            </span>
-          )}
-        </div>
-        <span className="text-2xl font-extrabold text-emerald-400 whitespace-nowrap">
-          ${productoSeleccionado.precio.toLocaleString("es-AR")}
-        </span>
-      </div>
-
-      {productoSeleccionado.linkCompra && (
-        <a
-          href={productoSeleccionado.linkCompra}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-center bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-md py-2 transition-colors"
+        <div
+          onClick={() => setProductoSeleccionado(null)}
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4"
         >
-          Ir a ChangoMás
-        </a>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="max-w-lg w-full bg-slate-800 border border-slate-700 rounded-xl p-5 shadow-2xl relative flex flex-col gap-4 text-white animate-fade-in"
+          >
+            <button
+              onClick={() => setProductoSeleccionado(null)}
+              className="absolute top-3 right-3 text-slate-400 hover:text-white text-lg leading-none z-10"
+              aria-label="Cerrar"
+            >
+              ✕
+            </button>
+
+            {/* Imagen Principal */}
+            <div className="w-full h-60 bg-white/5 rounded-lg flex items-center justify-center p-4">
+              {productoSeleccionado.imagenProducto ? (
+                <img
+                  src={productoSeleccionado.imagenProducto}
+                  alt={productoSeleccionado.nombre}
+                  className="h-full object-contain"
+                />
+              ) : (
+                <span className="text-xs text-slate-500">Sin imagen</span>
+              )}
+            </div>
+
+            {/* Información del Producto */}
+            <div>
+              <span className="block text-slate-400 text-xs uppercase font-semibold tracking-wider mb-1">
+                {productoSeleccionado.marca} - {productoSeleccionado.contenido}
+              </span>
+
+              {/* Contenedor Flex para mantener Título y Promo en la misma línea */}
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-bold text-slate-100">
+                  {productoSeleccionado.nombre}
+                </h2>
+                {productoSeleccionado.promocion && (
+                  <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-xs font-semibold px-2 py-0.5 rounded-md whitespace-nowrap shrink-0">
+                    🏷️ {productoSeleccionado.promocion}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Precios y Botón */}
+            <div className="flex justify-between items-end border-t border-slate-700/60 pt-3">
+              <div className="min-w-0">
+                {productoSeleccionado.precioPorUnidad ? (
+                  <span className="block text-xs text-slate-400 font-medium">
+                    {productoSeleccionado.precioPorUnidad}
+                  </span>
+                ) : (
+                  <span className="block text-xs text-slate-500 italic">
+                    Sin acum.
+                  </span>
+                )}
+              </div>
+              <span className="text-2xl font-extrabold text-emerald-400 whitespace-nowrap">
+                ${productoSeleccionado.precio.toLocaleString("es-AR")}
+              </span>
+            </div>
+
+            {productoSeleccionado.linkCompra && (
+              <a
+                href={productoSeleccionado.linkCompra}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-center bg-red-600 hover:bg-red-500 text-white text-sm font-semibold rounded-md py-2 transition-colors"
+              >
+                Ir a ChangoMás
+              </a>
+            )}
+          </div>
+        </div>
       )}
-    </div>
-  </div>
-)}
     </div>
   );
 };
