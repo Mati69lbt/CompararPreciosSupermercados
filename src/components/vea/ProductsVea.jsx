@@ -4,6 +4,47 @@ import { mapearProductoVea } from "./mapearProductoVea";
 
 const PRODUCTOS_POR_PAGINA = 50;
 
+const RANGOS_CONTENIDO = [
+  "Menos de 200 GR",
+  "200 a 500 GR",
+  "500 GR a 1 KG",
+  "1 KG",
+  "Más de 1 KG",
+  "Menos de 200 ML",
+  "200 a 500 ML",
+  "500 ML a 1 L",
+  "1 L",
+  "Más de 1 L",
+  "Unidades / Sin especificar",
+];
+
+// Convierte "1,5 L" / "800 GR" / "2 KG" a un rango de Peso o Volumen, sin mezclar familias
+const obtenerRangoContenido = (contenido) => {
+  if (!contenido || contenido === "Sin especificar") return "Unidades / Sin especificar";
+
+  const match = contenido.match(/^(\d+(?:[.,]\d+)?)\s*(GR|KG|ML|L)$/i);
+  if (!match) return "Unidades / Sin especificar";
+
+  const cantidad = parseFloat(match[1].replace(",", "."));
+  const unidad = match[2].toUpperCase();
+  const esPeso = unidad === "GR" || unidad === "KG";
+  const equivalente = unidad === "KG" || unidad === "L" ? cantidad * 1000 : cantidad;
+
+  if (esPeso) {
+    if (equivalente < 200) return "Menos de 200 GR";
+    if (equivalente < 500) return "200 a 500 GR";
+    if (equivalente < 1000) return "500 GR a 1 KG";
+    if (equivalente === 1000) return "1 KG";
+    return "Más de 1 KG";
+  }
+
+  if (equivalente < 200) return "Menos de 200 ML";
+  if (equivalente < 500) return "200 a 500 ML";
+  if (equivalente < 1000) return "500 ML a 1 L";
+  if (equivalente === 1000) return "1 L";
+  return "Más de 1 L";
+};
+
 const ProductsVea = ({ busqueda, onCount }) => {
   const [productos, setProductos] = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -36,7 +77,12 @@ const ProductsVea = ({ busqueda, onCount }) => {
           logoTienda: SUPERMARKET_LOGOS.vea,
         }));
 
-        setProductos(productosLimpios);
+        // La carga en paralelo de páginas puede traer el mismo producto repetido; deduplicamos por id
+        const productosUnicos = Array.from(
+          new Map(productosLimpios.map((p) => [p.id, p])).values(),
+        );
+
+        setProductos(productosUnicos);
       } else {
         setProductos([]);
       }
@@ -56,10 +102,6 @@ const ProductsVea = ({ busqueda, onCount }) => {
     }
   }, [busqueda]);
 
-  useEffect(() => {
-    onCount?.(productos.length);
-  }, [productos, onCount]);
-
   // Lista única de Marcas
   const marcasDisponibles = useMemo(() => {
     const marcas = productos
@@ -68,28 +110,28 @@ const ProductsVea = ({ busqueda, onCount }) => {
     return [...new Set(marcas)].sort((a, b) => a.localeCompare(b));
   }, [productos]);
 
-  // Lista única de Contenidos/Medidas
+  // Lista única de Rangos de Contenido/Medida
   const contenidosDisponibles = useMemo(() => {
-    const contenidos = productos
-      .map((p) => p.contenido)
-      .filter((c) => c && c !== "Sin especificar");
-    return [...new Set(contenidos)].sort((a, b) =>
-      a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
-    );
+    const rangos = new Set(productos.map((p) => obtenerRangoContenido(p.contenido)));
+    return RANGOS_CONTENIDO.filter((r) => rangos.has(r));
   }, [productos]);
 
-  // Filtrado por Marca/Medida + ORDENAMIENTO DE MENOR A MAYOR PRECIO
+  // Filtrado por Marca/Rango de Medida + ORDENAMIENTO DE MENOR A MAYOR PRECIO
   const productosFiltrados = useMemo(() => {
     return productos
       .filter((p) => {
         const coincideMarca = filtroMarca ? p.marca === filtroMarca : true;
         const coincideContenido = filtroContenido
-          ? p.contenido === filtroContenido
+          ? obtenerRangoContenido(p.contenido) === filtroContenido
           : true;
         return coincideMarca && coincideContenido;
       })
       .sort((a, b) => a.precio - b.precio);
   }, [productos, filtroMarca, filtroContenido]);
+
+  useEffect(() => {
+    onCount?.(productosFiltrados.length);
+  }, [productosFiltrados, onCount]);
 
   return (
     <div className="bg-slate-900 text-white flex flex-col">
@@ -172,6 +214,11 @@ const ProductsVea = ({ busqueda, onCount }) => {
                   ${prod.precio.toLocaleString("es-AR")}
                 </span>
               </div>
+              {prod.precioPorUnidad && (
+                <span className="block text-right text-[10px] text-slate-400 font-medium">
+                  {prod.precioPorUnidad}
+                </span>
+              )}
             </div>
           ))}
         </div>

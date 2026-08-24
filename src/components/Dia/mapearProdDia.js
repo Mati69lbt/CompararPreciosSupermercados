@@ -27,6 +27,39 @@ const extraerContenidoDeTexto = (texto = '') => {
   return '';
 };
 
+const normalizarUnidadMedida = (unidad = '') => {
+  const u = unidad.trim().toLowerCase();
+
+  if (['l', 'lt', 'lts', 'litro', 'litros'].includes(u)) return 'L';
+  if (['ml', 'cc'].includes(u)) return 'ML';
+  if (['g', 'gr', 'grs', 'gramos'].includes(u)) return 'GR';
+  if (['kg', 'kilo', 'kilos'].includes(u)) return 'KG';
+  if (['u', 'unid', 'unidad', 'unidades'].includes(u)) return 'UNID';
+
+  return unidad.toUpperCase();
+};
+
+const formatearPrecioPorUnidad = (precioPorUnd, unidadMedida) => {
+  const valor = Number(precioPorUnd);
+
+  console.log("formatearPrecioPorUnidad -> precioPorUnd:", precioPorUnd, "unidadMedida:", unidadMedida, "valor:", valor);
+
+  if (!precioPorUnd || Number.isNaN(valor) || valor <= 0) return null;
+
+  const precioFormateado = valor.toLocaleString('es-AR', {
+    style: 'currency',
+    currency: 'ARS',
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  });
+
+  const unidad = normalizarUnidadMedida(unidadMedida || '');
+
+ console.log(`${precioFormateado} x  ${unidad}`)  
+
+  return `${precioFormateado} x  ${unidad}`;
+};
+
 export const mapearProductoDia = (dataOriginal = []) => {
   if (!Array.isArray(dataOriginal)) return [];
 
@@ -53,6 +86,10 @@ export const mapearProductoDia = (dataOriginal = []) => {
         contenido = extraerContenidoDeTexto(contenidoBruto) || contenidoBruto;
       }
 
+      const precioPorUnd = item['PrecioPorUnd']?.[0] ?? item.PrecioPorUnd;
+      const unidadDeMedida = item['UnidaddeMedida']?.[0] ?? item.UnidaddeMedida;
+      const precioPorUnidad = formatearPrecioPorUnidad(precioPorUnd, unidadDeMedida);
+
       let promocion = null;
       if (seller?.Teasers && seller.Teasers.length > 0) {
         promocion = seller.Teasers[0]['<Name>k__BackingField'] || 'Oferta disponible';
@@ -68,6 +105,7 @@ export const mapearProductoDia = (dataOriginal = []) => {
         marca,
         categoria: item.categories?.[0]?.split('/')[1] || 'General',
         contenido: contenido || 'Sin especificar',
+        precioPorUnidad,
         promocion,
         imagenProducto,
         linkCompra: item.link || 'https://diaonline.supermercadosdia.com.ar',
