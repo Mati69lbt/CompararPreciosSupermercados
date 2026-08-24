@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { mapearProductoDia } from "./mapearProdDia";
 import { SUPERMARKET_LOGOS } from "../../assets/logos/logos";
 import { obtenerRangoContenido } from "../../utils/contenido";
+import { getApiUrl } from "../../utils/apiConfig";
 
 const PRODUCTOS_POR_PAGINA = 50;
 
@@ -24,7 +25,7 @@ const ProductsDia = ({
       const peticiones = paginasACargar.map((pageIndex) => {
         const from = pageIndex * PRODUCTOS_POR_PAGINA;
         const to = from + PRODUCTOS_POR_PAGINA - 1;
-        return fetch(`/api-dia?ft=${termino}&_from=${from}&_to=${to}`)
+        return fetch(getApiUrl("dia", `?ft=${termino}&_from=${from}&_to=${to}`))
           .then((res) => res.json())
           .catch(() => []);
       });

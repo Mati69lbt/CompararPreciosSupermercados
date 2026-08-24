@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { SUPERMARKET_LOGOS } from "../../assets/logos/logos";
 import { mapearProductoCarrefour } from "./mapearProdCarrefour";
 import { obtenerRangoContenido } from "../../utils/contenido";
+import { getApiUrl } from "../../utils/apiConfig";
 
 const PRODUCTOS_POR_PAGINA = 50;
 
@@ -26,7 +27,7 @@ const ProductsCarrefour = ({
       const peticiones = paginasACargar.map((pageIndex) => {
         const from = pageIndex * PRODUCTOS_POR_PAGINA;
         const to = from + PRODUCTOS_POR_PAGINA - 1;
-        return fetch(`/api-carrefour/${termino}?_from=${from}&_to=${to}`)
+        return fetch(getApiUrl("carrefour", `/${termino}?_from=${from}&_to=${to}`))
           .then((res) => res.json())
           .catch(() => []);
       });
