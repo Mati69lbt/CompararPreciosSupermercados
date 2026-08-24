@@ -1,6 +1,10 @@
 # Comparativa de precios — Supermercados AR
 
-App en React (Vite + Tailwind v4) que busca un mismo producto en varios supermercados argentinos (Carrefour, Día, ChangoMás, Vea, Coto) y en Mercado Libre, y compara precios lado a lado.
+App en React (Vite + Tailwind v4) que busca un mismo producto en varios supermercados argentinos (Carrefour, Día, ChangoMás, Vea, Coto) y compara precios lado a lado en una grilla de 5 columnas, con filtros globales de marca y medida.
+
+> Documento para cliente (qué es y cómo funciona, sin jerga técnica): [`docs/guia-cliente.md`](docs/guia-cliente.md)
+
+Mercado Libre tiene integración propia (`src/components/mercadoLibre/`) pero no está montada en `App.jsx` actualmente.
 
 ## Comandos
 
@@ -9,9 +13,10 @@ npm run dev       # servidor de desarrollo (Vite)
 npm run build     # build de producción
 npm run preview   # sirve el build de producción
 npm run lint      # ESLint sobre todo el repo
+npm run deploy    # publica dist/ a GitHub Pages (gh-pages)
 ```
 
-Deploy: proyecto en Vercel (build de Vite + función serverless `api/proxy.js`). Push a `main` dispara el deploy.
+Deploy: proyecto en Vercel (build de Vite + función serverless `api/proxy.js`). Push a `main` dispara el deploy. También existe un deploy alternativo a GitHub Pages vía `npm run deploy`.
 
 No hay suite de tests configurada.
 
