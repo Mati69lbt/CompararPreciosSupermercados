@@ -221,7 +221,7 @@ const ProductsMeli = () => {
                     )}
                   </div>
 
-                  <h3 className="font-medium text-slate-100 text-sm line-clamp-2 mb-2">
+                  <h3 className="font-medium text-slate-100 text-sm mb-2">
                     {prod.nombre}
                   </h3>
 

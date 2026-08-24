@@ -25,3 +25,13 @@
   background-color: rgb(100 116 139); /* slate-500 */
   background-clip: padding-box;
 }
+
+/* Oculta la barra de scroll (carrusel horizontal mobile) sin perder el gesto táctil */
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}

@@ -95,12 +95,12 @@ const ProductsCarrefour = ({
         {cargando ? (
           <p className="text-center text-slate-400 text-xs py-4">Cargando...</p>
         ) : (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-row gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-1 lg:flex-col lg:overflow-visible lg:snap-none lg:pb-0">
             {productosFiltrados.map((prod) => (
               <div
                 key={prod.id}
                 onClick={() => setProductoSeleccionado(prod)}
-                className="bg-slate-800 border border-slate-700 rounded-lg p-2 flex flex-col justify-between shadow hover:border-slate-500 transition-all overflow-hidden cursor-pointer hover:scale-[1.01]"
+                className="w-44 shrink-0 snap-start lg:w-auto lg:shrink lg:snap-align-none bg-slate-800 border border-slate-700 rounded-lg p-2 flex flex-col justify-between shadow hover:border-slate-500 transition-all overflow-hidden cursor-pointer hover:scale-[1.01]"
               >
                 <div className="flex gap-2">
                   <div className="w-14 h-14 shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden">
