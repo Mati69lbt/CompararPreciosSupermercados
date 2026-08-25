@@ -200,13 +200,13 @@ const ProductsVea = ({
             {/* Información del Producto */}
             <div>
               <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
-                {prod.marca}
-                {prod.contenido && prod.contenido !== "Sin especificar" && (
+                {productoSeleccionado.marca}
+                {productoSeleccionado.contenido && productoSeleccionado.contenido !== "Sin especificar" && (
                   <>
                     <br className="block sm:hidden" />
                     <span className="hidden sm:inline"> - </span>
                     <span className="text-slate-400 font-bold">
-                      {prod.contenido}
+                      {productoSeleccionado.contenido}
                     </span>
                   </>
                 )}

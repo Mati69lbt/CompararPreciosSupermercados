@@ -1,5 +1,7 @@
 // src/utils/mappers/mapearProductoCarrefour.js
 
+import { extraerDatosPapel } from '../../utils/extraerDatosPapel';
+
 const extraerContenidoDelNombre = (nombre = "") => {
   if (!nombre) return null;
 
@@ -187,10 +189,17 @@ const extraerPrecioPorUnidad = (item, precioFinal) => {
   return null;
 };
 
+// Descarta ítems sin stock real antes de mapear (IsAvailable=true y AvailableQuantity>0)
+const isProductAvailable = (item) => {
+  const offer = item?.items?.[0]?.sellers?.[0]?.commertialOffer;
+  return offer?.IsAvailable === true && (offer?.AvailableQuantity ?? 0) > 0;
+};
+
 export const mapearProductoCarrefour = (dataOriginal = []) => {
   if (!Array.isArray(dataOriginal)) return [];
-  
+
   return dataOriginal
+    .filter(isProductAvailable)
     .map((item) => {
       const id = item.productId || item.items?.[0]?.itemId || Math.random().toString(36).substr(2, 9);
       const nombre = item.productName || item['Descripción Genexis']?.[0] || 'Producto sin nombre';
@@ -242,6 +251,7 @@ export const mapearProductoCarrefour = (dataOriginal = []) => {
       }
 
       const precioPorUnidad = extraerPrecioPorUnidad(item, precioFinal);
+      const datosPapel = extraerDatosPapel(nombre, precioFinal);
 
       let promocion = null;
       if (seller?.Teasers && seller.Teasers.length > 0) {
@@ -271,8 +281,8 @@ export const mapearProductoCarrefour = (dataOriginal = []) => {
         precio: Number(precioFinal),
         marca,
         categoria: item['EC_Sección']?.[0] || item['EC_Familia']?.[0] || 'General',
-        contenido: contenido || 'Sin especificar',
-        precioPorUnidad,
+        contenido: datosPapel?.contenido || contenido || 'Sin especificar',
+        precioPorUnidad: datosPapel?.precioPorUnidad || precioPorUnidad,
         promocion,
         imagenProducto,
         linkCompra: item.link || 'https://www.carrefour.com.ar',

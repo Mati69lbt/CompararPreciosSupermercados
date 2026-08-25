@@ -1,5 +1,7 @@
 // src/utils/mappers/mapearProdDia.js
 
+import { extraerDatosPapel } from '../../utils/extraerDatosPapel';
+
 const extraerContenidoDeTexto = (texto = '') => {
   if (!texto) return '';
 
@@ -82,10 +84,17 @@ const formatearPrecioPorUnidad = (precioPorUnd, unidadMedida) => {
   return `${precioFormateado} x  ${unidad}`;
 };
 
+// Descarta ítems sin stock real antes de mapear (IsAvailable=true y AvailableQuantity>0)
+const isProductAvailable = (item) => {
+  const offer = item?.items?.[0]?.sellers?.[0]?.commertialOffer;
+  return offer?.IsAvailable === true && (offer?.AvailableQuantity ?? 0) > 0;
+};
+
 export const mapearProductoDia = (dataOriginal = []) => {
   if (!Array.isArray(dataOriginal)) return [];
 
   return dataOriginal
+    .filter(isProductAvailable)
     .map((item) => {
       const id = item.productId || item.items?.[0]?.itemId || Math.random().toString(36).substr(2, 9);
       const nombre = item.productName || item.productTitle || 'Producto sin nombre';
@@ -137,6 +146,8 @@ export const mapearProductoDia = (dataOriginal = []) => {
         promocion = 'En oferta';
       }
 
+      const datosPapel = extraerDatosPapel(nombre, precioFinal);
+
       return {
         id: `dia-${id}`,
         tienda: 'dia',
@@ -144,8 +155,8 @@ export const mapearProductoDia = (dataOriginal = []) => {
         precio: Number(precioFinal),
         marca,
         categoria: item.categories?.[0]?.split('/')[1] || 'General',
-        contenido: contenido || 'Sin especificar',
-        precioPorUnidad,
+        contenido: datosPapel?.contenido || contenido || 'Sin especificar',
+        precioPorUnidad: datosPapel?.precioPorUnidad || precioPorUnidad,
         promocion,
         imagenProducto,
         linkCompra: item.link || 'https://diaonline.supermercadosdia.com.ar',

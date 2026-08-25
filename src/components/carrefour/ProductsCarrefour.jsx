@@ -36,6 +36,7 @@ const ProductsCarrefour = ({
 
       const resultados = await Promise.all(peticiones);
 
+      console.log("Resultados de Carrefour (4 páginas):", resultados);
 
       // Aplanamos los resultados de las 4 páginas en un solo array
       const todosRaw = resultados.flat();

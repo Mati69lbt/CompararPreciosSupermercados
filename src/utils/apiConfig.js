@@ -5,7 +5,7 @@ const TIENDAS_URLS = {
   vea: "https://www.vea.com.ar/api/catalog_system/pub/products/search",
 };
 
-export const getApiUrl = (tienda, endpoint) => {
+export const getApiUrl = (tienda, endpoint) => {  
   if (import.meta.env.DEV) {
     return `/api-${tienda}${endpoint}`;
   }
@@ -14,3 +14,4 @@ export const getApiUrl = (tienda, endpoint) => {
   const targetUrl = encodeURIComponent(`${baseUrl}${endpoint}`);
   return `/api/proxy?url=${targetUrl}`;
 };
+

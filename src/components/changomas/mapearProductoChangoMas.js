@@ -1,5 +1,7 @@
 // src/utils/mappers/mapearProductoChangoMas.js
 
+import { extraerDatosPapel } from '../../utils/extraerDatosPapel';
+
 const extraerContenidoDeTexto = (texto = '') => {
   if (!texto) return '';
 
@@ -113,10 +115,17 @@ const calcularPrecioPorUnidad = (precioFinal, contenido) => {
   return `${formatearPrecio(precioPorUnidad)} x 1 ${unidadFinal}`;
 };
 
+// Descarta ítems sin stock real antes de mapear (IsAvailable=true y AvailableQuantity>0)
+const isProductAvailable = (item) => {
+  const offer = item?.items?.[0]?.sellers?.[0]?.commertialOffer;
+  return offer?.IsAvailable === true && (offer?.AvailableQuantity ?? 0) > 0;
+};
+
 export const mapearProductoChangoMas = (dataOriginal = []) => {
   if (!Array.isArray(dataOriginal)) return [];
 
   return dataOriginal
+    .filter(isProductAvailable)
     .map((item) => {
       const id = item.productId || item.items?.[0]?.itemId || Math.random().toString(36).substr(2, 9);
       const nombre = item.productName || item.productTitle || item.items?.[0]?.nameComplete || 'Producto sin nombre';
@@ -137,6 +146,7 @@ export const mapearProductoChangoMas = (dataOriginal = []) => {
 
       const contenidoFinal = contenido || 'Sin especificar';
       const precioPorUnidad = calcularPrecioPorUnidad(precioFinal, contenidoFinal);
+      const datosPapel = extraerDatosPapel(nombre, precioFinal);
 
       return {
         id: `changomas-${id}`,
@@ -145,8 +155,8 @@ export const mapearProductoChangoMas = (dataOriginal = []) => {
         precio: Number(precioFinal),
         marca,
         categoria: item.categories?.[0]?.split('/')[1] || 'General',
-        contenido: contenidoFinal,
-        precioPorUnidad,
+        contenido: datosPapel?.contenido || contenidoFinal,
+        precioPorUnidad: datosPapel?.precioPorUnidad || precioPorUnidad,
         promocion,
         imagenProducto,
         linkCompra: item.link || 'https://www.masonline.com.ar',

@@ -1,5 +1,7 @@
 // src/components/coto/mapearProductoCoto.js
 
+import { extraerDatosPapel } from '../../utils/extraerDatosPapel';
+
 // RegEx para extraer cantidad y unidad del título (ej: "1,5 L", "1LT", "800 GR", "1.5LTS")
 const extraerYNormalizarContenido = (nombre) => {
   if (!nombre) return "Sin especificar";
@@ -141,6 +143,8 @@ export const mapearProductoCoto = (dataOriginal) => {
       promocion = d.sale_type;
     }
 
+    const datosPapel = extraerDatosPapel(nombre, precioFinal);
+
     return {
       id: `coto-${id}`,
       tienda: "coto",
@@ -148,8 +152,8 @@ export const mapearProductoCoto = (dataOriginal) => {
       precio: Number(precioFinal),
       marca,
       categoria: d.product_class || "General",
-      contenido,
-      precioPorUnidad: calcularPrecioPorUnidad(precioFinal, contenido),
+      contenido: datosPapel?.contenido || contenido,
+      precioPorUnidad: datosPapel?.precioPorUnidad || calcularPrecioPorUnidad(precioFinal, contenido),
       promocion,
       imagenProducto,
       linkCompra,
