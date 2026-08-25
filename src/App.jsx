@@ -6,6 +6,8 @@ import ProductsDia from "./components/Dia/ProductsDia";
 import ProductsChangoMas from "./components/changomas/ProductsChangoMas";
 import ProductsVea from "./components/vea/ProductsVea";
 import { RANGOS_CONTENIDO, obtenerRangoContenido } from "./utils/contenido";
+import { construirInfoDeCoincidencias } from "./utils/productMatch";
+import { ProductMatchContext } from "./context/ProductMatchContext";
 
 const TIENDAS = [
   {
@@ -67,6 +69,20 @@ export default function App() {
   const todosLosProductos = useMemo(
     () => Object.values(productosPorTienda).flat(),
     [productosPorTienda],
+  );
+
+  // Agrupa productos equivalentes entre tiendas (mismo producto, marca y contenido)
+  // para determinar quién es el más barato, quién compite y quién es único.
+  const matchInfoPorClave = useMemo(
+    () => construirInfoDeCoincidencias(todosLosProductos),
+    [todosLosProductos],
+  );
+
+  const [grupoActivo, setGrupoActivo] = useState(null);
+
+  const productMatchValue = useMemo(
+    () => ({ matchInfoPorClave, grupoActivo, setGrupoActivo }),
+    [matchInfoPorClave, grupoActivo],
   );
 
   // Medidas únicas disponibles en todos los resultados
@@ -172,6 +188,7 @@ export default function App() {
             Carrefour, Día, ChangoMás, Vea y Coto.
           </p>
         ) : (
+          <ProductMatchContext.Provider value={productMatchValue}>
           <div className="flex flex-col gap-3 lg:grid lg:grid-cols-5 lg:gap-3 lg:h-full lg:items-stretch">
             {TIENDAS.map(({ key, nombre, logo, Componente }) => (
               <div
@@ -209,6 +226,7 @@ export default function App() {
               </div>
             ))}
           </div>
+          </ProductMatchContext.Provider>
         )}
       </main>
     </div>

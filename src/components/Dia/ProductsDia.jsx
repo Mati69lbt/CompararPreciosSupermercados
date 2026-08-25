@@ -3,8 +3,76 @@ import { mapearProductoDia } from "./mapearProdDia";
 import { SUPERMARKET_LOGOS } from "../../assets/logos/logos";
 import { obtenerRangoContenido } from "../../utils/contenido";
 import { getApiUrl } from "../../utils/apiConfig";
+import { useEstiloTarjeta } from "../../context/ProductMatchContext";
 
 const PRODUCTOS_POR_PAGINA = 50;
+
+const TarjetaProducto = ({ prod, onSeleccionar }) => {
+  const { claseBorde, onMouseEnter, onMouseLeave } = useEstiloTarjeta("dia", prod.id);
+
+  return (
+    <div
+      onClick={() => onSeleccionar(prod)}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
+      className={`w-44 shrink-0 snap-start lg:w-auto lg:shrink lg:snap-align-none bg-slate-800 rounded-lg p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
+    >
+      <div className="flex gap-2">
+        <div className="w-14 h-14 shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden">
+          {prod.imagenProducto ? (
+            <img
+              src={prod.imagenProducto}
+              alt={prod.nombre}
+              className="h-full object-contain p-1"
+            />
+          ) : (
+            <span className="text-[9px] text-slate-500">Sin imagen</span>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
+            {prod.marca}
+            {prod.contenido && prod.contenido !== "Sin especificar" && (
+              <>
+                <br className="block sm:hidden" />
+                <span className="hidden sm:inline"> - </span>
+                <span className="text-slate-400 font-bold">{prod.contenido}</span>
+              </>
+            )}
+          </span>
+          <h3
+            title={prod.nombre}
+            className="font-medium text-slate-100 text-[11px] line-clamp-3"
+          >
+            {prod.nombre}
+          </h3>
+          {prod.promocion && (
+            <span className="inline-block mt-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-semibold px-1.5 py-0.5 rounded-md w-fit">
+              🏷️ {prod.promocion}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Pie de tarjeta: Precio por unidad/kilo a la izquierda / Precio final a la derecha */}
+      <div className="mt-1.5 pt-1.5 border-t border-slate-700/60 flex justify-between items-baseline gap-1">
+        <div className="min-w-0 shrink">
+          {prod.precioPorUnidad ? (
+            <span className="block text-[12px] text-slate-400 font-medium truncate">
+              {prod.precioPorUnidad}
+            </span>
+          ) : (
+            <span className="block text-[12px] text-slate-500 italic">Sin acum.</span>
+          )}
+        </div>
+
+        <span className="text-sm font-extrabold text-emerald-400 whitespace-nowrap text-right shrink-0">
+          ${prod.precio.toLocaleString("es-AR")}
+        </span>
+      </div>
+    </div>
+  );
+};
 
 const ProductsDia = ({
   busqueda,
@@ -91,72 +159,11 @@ const ProductsDia = ({
         ) : (
           <div className="flex flex-row gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-1 lg:flex-col lg:overflow-visible lg:snap-none lg:pb-0">
             {productosFiltrados.map((prod) => (
-              <div
+              <TarjetaProducto
                 key={prod.id}
-                onClick={() => setProductoSeleccionado(prod)}
-                className="w-44 shrink-0 snap-start lg:w-auto lg:shrink lg:snap-align-none bg-slate-800 border border-slate-700 rounded-lg p-2 flex flex-col justify-between shadow hover:border-slate-500 transition-all overflow-hidden cursor-pointer hover:scale-[1.01]"
-              >
-                <div className="flex gap-2">
-                  <div className="w-14 h-14 shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden">
-                    {prod.imagenProducto ? (
-                      <img
-                        src={prod.imagenProducto}
-                        alt={prod.nombre}
-                        className="h-full object-contain p-1"
-                      />
-                    ) : (
-                      <span className="text-[9px] text-slate-500">
-                        Sin imagen
-                      </span>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
-                      {prod.marca}
-                      {prod.contenido &&
-                        prod.contenido !== "Sin especificar" && (
-                          <>
-                            <br className="block sm:hidden" />
-                            <span className="hidden sm:inline"> - </span>
-                            <span className="text-slate-400 font-bold">
-                              {prod.contenido}
-                            </span>
-                          </>
-                        )}
-                    </span>
-                    <h3
-                      title={prod.nombre}
-                      className="font-medium text-slate-100 text-[11px] line-clamp-3"
-                    >
-                      {prod.nombre}
-                    </h3>
-                    {prod.promocion && (
-                      <span className="inline-block mt-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-semibold px-1.5 py-0.5 rounded-md w-fit">
-                        🏷️ {prod.promocion}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                {/* Pie de tarjeta: Precio por unidad/kilo a la izquierda / Precio final a la derecha */}
-                <div className="mt-1.5 pt-1.5 border-t border-slate-700/60 flex justify-between items-baseline gap-1">
-                  <div className="min-w-0 shrink">
-                    {prod.precioPorUnidad ? (
-                      <span className="block text-[12px] text-slate-400 font-medium truncate">
-                        {prod.precioPorUnidad}
-                      </span>
-                    ) : (
-                      <span className="block text-[12px] text-slate-500 italic">
-                        Sin acum.
-                      </span>
-                    )}
-                  </div>
-
-                  <span className="text-sm font-extrabold text-emerald-400 whitespace-nowrap text-right shrink-0">
-                    ${prod.precio.toLocaleString("es-AR")}
-                  </span>
-                </div>
-              </div>
+                prod={prod}
+                onSeleccionar={setProductoSeleccionado}
+              />
             ))}
           </div>
         )}
