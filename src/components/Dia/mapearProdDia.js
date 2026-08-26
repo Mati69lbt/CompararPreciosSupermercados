@@ -153,6 +153,7 @@ export const mapearProductoDia = (dataOriginal = []) => {
         tienda: 'dia',
         nombre,
         precio: Number(precioFinal),
+        listPrice: Number(seller?.ListPrice || precioFinal),
         marca,
         categoria: item.categories?.[0]?.split('/')[1] || 'General',
         contenido: datosPapel?.contenido || contenido || 'Sin especificar',

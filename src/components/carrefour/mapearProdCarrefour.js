@@ -253,12 +253,9 @@ export const mapearProductoCarrefour = (dataOriginal = []) => {
       const precioPorUnidad = extraerPrecioPorUnidad(item, precioFinal);
       const datosPapel = extraerDatosPapel(nombre, precioFinal);
 
-      let promocion = null;
-      if (seller?.Teasers && seller.Teasers.length > 0) {
-        promocion = seller.Teasers[0]['<Name>k__BackingField'] || 'Oferta disponible';
-      } else if (seller?.Price < seller?.ListPrice) {
-        promocion = 'En oferta';
-      }
+      // Oferta directa por precio EXCLUSIVAMENTE: se ignoran Teasers/PromotionTeasers/clusters
+      // (esos reflejan promos secundarias tipo "2do al 50%" o descuento por tarjeta, no un precio menor real).
+      const promocion = seller?.Price < seller?.ListPrice ? 'En oferta' : null;
 
       // Info extra pedida para inspección/depuración (no usada aún en la UI)
       const infoExtra = {
@@ -279,6 +276,7 @@ export const mapearProductoCarrefour = (dataOriginal = []) => {
         tienda: 'carrefour',
         nombre,
         precio: Number(precioFinal),
+        listPrice: Number(seller?.ListPrice || precioFinal),
         marca,
         categoria: item['EC_Sección']?.[0] || item['EC_Familia']?.[0] || 'General',
         contenido: datosPapel?.contenido || contenido || 'Sin especificar',

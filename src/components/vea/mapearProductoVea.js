@@ -267,6 +267,7 @@ export const mapearProductoVea = (dataOriginal = []) => {
         tienda: 'vea',
         nombre,
         precio: Number(precioFinal),
+        listPrice: Number(seller?.ListPrice || precioFinal),
         marca,
         categoria: item.categories?.[0]?.split('/')[1] || 'General',
         contenido: datosPapel?.contenido || contenido || 'Sin especificar', // Si no tiene medida en el título, pasa a ser "Sin especificar"
