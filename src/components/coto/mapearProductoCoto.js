@@ -90,6 +90,32 @@ const calcularPrecioPorUnidad = (precioFinal, contenido) => {
   return `${formatearPrecio(precioPorUnidad)} x 1 ${unidadFinal}`;
 };
 
+// Busca en d.discounts un descuento directo por unidad (no condicionado a
+// comprar varios, ej. "Llevando 2 (Hasta 30% DTO!!)"). Sólo se toma en cuenta
+// si el precio regular informado coincide con el precio de sucursal ya
+// resuelto (precioFinal), para no mezclar descuentos de otra sucursal.
+const extraerDescuentoDirecto = (discounts, precioFinal) => {
+  if (!Array.isArray(discounts)) return null;
+
+  for (const d of discounts) {
+    if (d?.takingText) continue; // condicionado a cantidad, no es descuento directo
+    if (!d?.discountText || !d?.discountPrice || !d?.regularPriceText) continue;
+
+    const matchRegular = d.regularPriceText.match(/\$\s*([\d.,]+)/);
+    const matchDescuento = d.discountPrice.match(/\$\s*([\d.,]+)/);
+    if (!matchRegular || !matchDescuento) continue;
+
+    const regular = parseFloat(matchRegular[1].replace(/[^\d.]/g, ""));
+    const descuento = parseFloat(matchDescuento[1].replace(/[^\d.]/g, ""));
+    if (!regular || !descuento || descuento >= regular) continue;
+    if (Math.round(regular) !== Math.round(precioFinal)) continue;
+
+    return { listPrice: regular, precio: descuento };
+  }
+
+  return null;
+};
+
 export const mapearProductoCoto = (dataOriginal) => {
   const productosRaw =
     dataOriginal?.response?.results ||
@@ -143,17 +169,21 @@ export const mapearProductoCoto = (dataOriginal) => {
       promocion = d.sale_type;
     }
 
-    const datosPapel = extraerDatosPapel(nombre, precioFinal);
+    const descuentoDirecto = extraerDescuentoDirecto(d.discounts, precioFinal);
+    const precioMostrado = descuentoDirecto?.precio ?? precioFinal;
+
+    const datosPapel = extraerDatosPapel(nombre, precioMostrado);
 
     return {
       id: `coto-${id}`,
       tienda: "coto",
       nombre,
-      precio: Number(precioFinal),
+      precio: Number(precioMostrado),
+      listPrice: Number(precioFinal),
       marca,
       categoria: d.product_class || "General",
       contenido: datosPapel?.contenido || contenido,
-      precioPorUnidad: datosPapel?.precioPorUnidad || calcularPrecioPorUnidad(precioFinal, contenido),
+      precioPorUnidad: datosPapel?.precioPorUnidad || calcularPrecioPorUnidad(precioMostrado, contenido),
       promocion,
       imagenProducto,
       linkCompra,

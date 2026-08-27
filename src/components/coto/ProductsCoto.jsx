@@ -3,71 +3,72 @@ import { SUPERMARKET_LOGOS } from "../../assets/logos/logos";
 import { mapearProductoCoto } from "./mapearProductoCoto";
 import { obtenerRangoContenido } from "../../utils/contenido";
 import { useEstiloTarjeta } from "../../context/ProductMatchContext";
+import { ordenarPorPrecioRelativo } from "../../utils/precioPorUnidad";
 
 const PRODUCTOS_POR_PAGINA = 50;
 
 const TarjetaProducto = ({ prod, onSeleccionar }) => {
   const { claseBorde, onMouseEnter, onMouseLeave } = useEstiloTarjeta("coto", prod.id);
+  const tieneDescuento = prod.listPrice > prod.precio;
+  const descuento = tieneDescuento
+    ? Math.round((1 - prod.precio / prod.listPrice) * 100)
+    : null;
 
   return (
     <div
       onClick={() => onSeleccionar(prod)}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={`w-44 shrink-0 snap-start lg:w-auto lg:shrink lg:snap-align-none bg-slate-800 rounded-lg p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
+      className={`w-[220px] sm:w-[240px] shrink-0 snap-start lg:w-auto lg:shrink lg:snap-align-none bg-slate-800 rounded-lg p-2.5 sm:p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
     >
-      <div className="flex gap-2">
-        <div className="w-14 h-14 shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden">
+      <div>
+        <div className="h-24 sm:h-26 w-full shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden mb-1.5">
           {prod.imagenProducto ? (
             <img
               src={prod.imagenProducto}
               alt={prod.nombre}
-              className="h-full object-contain p-1"
+              className="h-full w-full object-contain p-1"
             />
           ) : (
             <span className="text-[9px] text-slate-500">Sin imagen</span>
           )}
         </div>
-        <div className="min-w-0 flex-1">
-          <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
+
+        <div className="flex items-center justify-between gap-1 mb-1">
+          <span className="min-w-0 flex-1 block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
             {prod.marca}
-            {prod.contenido && prod.contenido !== "Sin especificar" && (
-              <>
-                <br className="block sm:hidden" />
-                <span className="hidden sm:inline"> - </span>
-                <span className="text-slate-400 font-bold">{prod.contenido}</span>
-              </>
-            )}
+            {prod.contenido && prod.contenido !== "Sin especificar"
+              ? ` - ${prod.contenido}`
+              : ""}
           </span>
-          <h3
-            title={prod.nombre}
-            className="font-medium text-slate-100 text-[11px] line-clamp-3"
-          >
-            {prod.nombre}
-          </h3>
-          {prod.promocion && (
-            <span className="inline-block mt-1 bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-semibold px-1.5 py-0.5 rounded-md w-fit">
-              🏷️ {prod.promocion}
+          {tieneDescuento && (
+            <span className="shrink-0 bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+              -{descuento}%
             </span>
           )}
         </div>
+
+        <h3
+          title={prod.nombre}
+          className="font-medium text-slate-100 text-xs line-clamp-2 leading-snug"
+        >
+          {prod.nombre}
+        </h3>
       </div>
 
-      {/* Pie de tarjeta: Precio por unidad/kilo a la izquierda / Precio final a la derecha */}
-      <div className="mt-1.5 pt-1.5 border-t border-slate-700/60 flex justify-between items-baseline gap-1">
-        <div className="min-w-0 shrink">
-          {prod.precioPorUnidad ? (
-            <span className="block text-[12px] text-slate-400 font-medium truncate">
-              {prod.precioPorUnidad}
-            </span>
-          ) : (
-            <span className="block text-[12px] text-slate-500 italic">Sin acum.</span>
-          )}
+      <div>
+        <hr className="border-slate-800 my-1.5" />
+        <div className="flex items-center justify-between gap-1 text-xs">
+          <span className="text-slate-400 font-medium truncate text-[11px]">
+            {prod.precioPorUnidad || ""}
+          </span>
+          <span className="text-slate-400 font-normal text-[11px] px-1 whitespace-nowrap">
+            ${(prod.listPrice ?? prod.precio).toLocaleString("es-AR")}
+          </span>
+          <span className="text-emerald-400 font-bold text-xs sm:text-sm whitespace-nowrap">
+            ${prod.precio.toLocaleString("es-AR")}
+          </span>
         </div>
-
-        <span className="text-sm font-extrabold text-emerald-400 whitespace-nowrap text-right shrink-0">
-          ${prod.precio.toLocaleString("es-AR")}
-        </span>
       </div>
     </div>
   );
@@ -142,7 +143,7 @@ const ProductsCoto = ({
 
   // Filtrado + ORDENAMIENTO DE MENOR A MAYOR PRECIO
   const productosFiltrados = useMemo(() => {
-    return productos
+    const filtrados = productos
       .filter((p) => {
         const coincideMarca = filtroMarca
           ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim()
@@ -151,8 +152,8 @@ const ProductsCoto = ({
           ? obtenerRangoContenido(p.contenido) === filtroContenido
           : true;
         return coincideMarca && coincideContenido;
-      })
-      .sort((a, b) => a.precio - b.precio);
+      });
+    return ordenarPorPrecioRelativo(filtrados);
   }, [productos, filtroMarca, filtroContenido]);
 
   useEffect(() => {

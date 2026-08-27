@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { getApiUrl } from "../../utils/apiConfig";
 import { SUPERMARKET_LOGOS } from "../../assets/logos/logos";
 import { construirInfoDeCoincidencias } from "../../utils/productMatch";
-import { formatearPrecioPorUnidad } from "../../utils/precioPorUnidad";
+import {
+  formatearPrecioPorUnidad,
+  ordenarPorPrecioRelativo,
+} from "../../utils/precioPorUnidad";
 import {
   ProductMatchContext,
   useEstiloTarjeta,
@@ -15,15 +19,16 @@ import { mapearProductoCarrefour } from "../../components/carrefour/mapearProdCa
 import { mapearProductoDia } from "../../components/Dia/mapearProdDia";
 import { mapearProductoChangoMas } from "../../components/changomas/mapearProductoChangoMas";
 import { mapearProductoVea } from "../../components/vea/mapearProductoVea";
+import { mapearProductoCoto } from "../../components/coto/mapearProductoCoto";
 
-// Config de fetch por tienda VTEX (Coto y MELI no exponen catalog_system,
-// por eso no tienen mapeador acá; su columna queda visible pero sin datos).
+// Config de fetch por tienda VTEX (Coto usa su propia API BFF, ver
+// buscarOfertasDeCotoTermino; MELI no expone catalog_system y queda sin datos).
 const TIENDAS_OFERTAS = {
   carrefour: { nombre: "Carrefour", mapear: mapearProductoCarrefour },
   dia: { nombre: "Día", mapear: mapearProductoDia },
   changomas: { nombre: "ChangoMás", mapear: mapearProductoChangoMas },
   vea: { nombre: "Vea", mapear: mapearProductoVea },
-  coto: { nombre: "Coto", mapear: null },
+  coto: { nombre: "Coto", mapear: mapearProductoCoto },
 };
 
 // Orden de las 5 columnas del layout
@@ -65,6 +70,37 @@ const buscarOfertasDeTermino = async (tienda, mapear, termino) => {
   }
 };
 
+// Coto no expone catalog_system (VTEX): usa su propia API BFF, con
+// estructura y filtros de stock/descuento distintos.
+const buscarOfertasDeCotoTermino = async (termino) => {
+  try {
+    const storeTarget = import.meta.env.VITE_API_COTO_STORE || "109";
+    const url = `https://api.coto.com.ar/api/v1/ms-digital-sitio-bff-web/api/v1/products/search/${encodeURIComponent(termino)}?key=${import.meta.env.VITE_API_COTO_KEY}&num_results_per_page=${PRODUCTOS_POR_TERMINO}&page=1&pre_filter_expression=%7B%22name%22:%22store_availability%22,%22value%22:%22${storeTarget}%22%7D`;
+
+    const res = await fetch(url);
+    if (!res.ok) return [];
+    const data = await res.json();
+    const resultados = data?.response?.results || [];
+    if (!Array.isArray(resultados) || resultados.length === 0) return [];
+
+    // Solo ítems con stock real en la sucursal configurada
+    const conStock = resultados.filter((item) =>
+      (item?.data?.store_availability || []).includes(storeTarget),
+    );
+
+    return mapearProductoCoto({ response: { results: conStock } })
+      .map((p) => ({ ...p, logoTienda: SUPERMARKET_LOGOS.coto }))
+      .filter((p) => p.listPrice > p.precio)
+      .map((p) => ({
+        ...p,
+        descuento: Math.round((1 - p.precio / p.listPrice) * 100),
+        termino,
+      }));
+  } catch {
+    return [];
+  }
+};
+
 const TarjetaOferta = ({ prod, onSeleccionar }) => {
   const { claseBorde, onMouseEnter, onMouseLeave } = useEstiloTarjeta(
     prod.tienda,
@@ -76,45 +112,48 @@ const TarjetaOferta = ({ prod, onSeleccionar }) => {
       onClick={() => onSeleccionar(prod)}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={`bg-slate-800 rounded-lg p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
+      className={`w-[220px] sm:w-[280px] bg-slate-800 rounded-lg p-2.5 sm:p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
     >
-      <div className="flex gap-2">
-        <div className="w-14 h-14 shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden">
+      <div>
+        <div className="h-24 sm:h-26 w-full shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden mb-1.5">
           {prod.imagenProducto ? (
             <img
               src={prod.imagenProducto}
               alt={prod.nombre}
-              className="h-full object-contain p-1"
+              className="h-full w-full object-contain p-1"
             />
           ) : (
             <span className="text-[9px] text-slate-500">Sin imagen</span>
           )}
         </div>
-        <div className="min-w-0 flex-1">
-          <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
+
+        <div className="flex items-center justify-between gap-1 mb-1">
+          <span className="min-w-0 flex-1 block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
             {prod.marca} - {prod.contenido}
           </span>
-          <h3
-            title={prod.nombre}
-            className="font-medium text-slate-100 text-[11px] line-clamp-3"
-          >
-            {prod.nombre}
-          </h3>
-          <span className="inline-block mt-1 bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[9px] font-bold px-1.5 py-0.5 rounded-md w-fit">
+          <span className="shrink-0 bg-rose-500/20 text-rose-300 border border-rose-500/40 text-[9px] font-bold px-1.5 py-0.5 rounded-md">
             -{prod.descuento}%
           </span>
         </div>
+
+        <h3
+          title={prod.nombre}
+          className="font-medium text-slate-100 text-xs line-clamp-2 leading-snug"
+        >
+          {prod.nombre}
+        </h3>
       </div>
 
-      <div className="mt-1.5 pt-1.5 border-t border-slate-700/60 flex justify-between items-center gap-1">
-        <span className="text-[10px] text-slate-500 font-medium truncate">
-          {formatearPrecioPorUnidad(prod.precio, prod.contenido) || ""}
-        </span>
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-[11px] text-slate-400 truncate">
+      <div>
+        <hr className="border-slate-800 my-1.5" />
+        <div className="flex items-center justify-between gap-1 text-xs">
+          <span className="text-slate-400 font-medium truncate text-[11px]">
+            {formatearPrecioPorUnidad(prod.precio, prod.contenido) || ""}
+          </span>
+          <span className="text-slate-400 font-normal text-[11px] px-1 whitespace-nowrap">
             ${prod.listPrice.toLocaleString("es-AR")}
           </span>
-          <span className="text-sm font-extrabold text-emerald-400 whitespace-nowrap text-right">
+          <span className="text-emerald-400 font-bold text-xs sm:text-sm whitespace-nowrap">
             ${prod.precio.toLocaleString("es-AR")}
           </span>
         </div>
@@ -123,25 +162,37 @@ const TarjetaOferta = ({ prod, onSeleccionar }) => {
   );
 };
 
+const TERMINOS_CANASTA_ORDENADOS = [...TERMINOS_CANASTA].sort((a, b) =>
+  a.localeCompare(b, "es", { sensitivity: "base" }),
+);
+
 const SelectorTermino = ({
+  id,
   terminoSeleccionado,
   onChange,
   conteoPorTermino,
   totalOfertas,
 }) => (
-  <div className="px-3 py-2 border-b border-slate-700 bg-slate-900/60 shrink-0">
+  <div className="w-full px-3 py-2 border-b border-slate-700 bg-slate-900/60 shrink-0 flex flex-col gap-1">
+    <label
+      htmlFor={id}
+      className="text-[10px] text-slate-400 font-medium uppercase tracking-wider"
+    >
+      Filtrar por categoría
+    </label>
     <select
-      id="filtro-canasta-carrefour"
+      id={id}
       value={terminoSeleccionado}
       onChange={(e) => onChange(e.target.value)}
       className="w-full px-2 py-1.5 border border-slate-700 rounded-lg bg-slate-800 text-slate-100 shadow-sm text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
     >
-      <option value="TODOS">Todos ({totalOfertas})</option>
-      {TERMINOS_CANASTA.map((termino) => {
+      <option value="TODOS">TODOS ({totalOfertas})</option>
+      {TERMINOS_CANASTA_ORDENADOS.map((termino) => {
         const cantidad = conteoPorTermino[termino] || 0;
+        if (cantidad === 0) return null;
         return (
           <option key={termino} value={termino}>
-            {termino} ({cantidad})
+            {termino.toUpperCase()} ({cantidad})
           </option>
         );
       })}
@@ -149,7 +200,17 @@ const SelectorTermino = ({
   </div>
 );
 
+const SpinnerDia = ({ progreso, totalTareas }) => (
+  <div className="flex flex-col items-center justify-center gap-3 mt-6">
+    <div className="h-10 w-10 rounded-full border-4 border-red-500/20 border-t-red-500 animate-spin" />
+    <p className="text-center text-slate-400 text-xs">
+      Relevando canasta básica... {progreso}/{totalTareas}
+    </p>
+  </div>
+);
+
 const ColumnaTienda = ({
+  tiendaKey,
   nombre,
   logo,
   ofertas,
@@ -176,21 +237,23 @@ const ColumnaTienda = ({
 
     <div className="flex-1 lg:overflow-y-auto lg:min-h-0 scroll-tienda p-2">
       {cargando && ofertas.length === 0 ? (
-        <p className="text-center text-slate-400 text-xs mt-6">
-          Relevando canasta básica... {progreso}/{totalTareas}
-        </p>
+        tiendaKey === "dia" ? (
+          <SpinnerDia progreso={progreso} totalTareas={totalTareas} />
+        ) : (
+          <p className="text-center text-slate-400 text-xs mt-6">
+            Relevando canasta básica... {progreso}/{totalTareas}
+          </p>
+        )
       ) : ofertas.length === 0 ? (
         <p className="text-center text-slate-500 text-xs mt-6">
           Sin ofertas relevadas.
         </p>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex justify-center gap-2 overflow-x-auto pb-2 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-col lg:items-center lg:overflow-x-visible lg:pb-0 lg:snap-none">
           {ofertas.map((prod) => (
-            <TarjetaOferta
-              key={prod.id}
-              prod={prod}
-              onSeleccionar={onSeleccionar}
-            />
+            <div key={prod.id} className="shrink-0 snap-start">
+              <TarjetaOferta prod={prod} onSeleccionar={onSeleccionar} />
+            </div>
           ))}
         </div>
       )}
@@ -199,12 +262,15 @@ const ColumnaTienda = ({
 );
 
 const Ofertas = () => {
+  const navigate = useNavigate();
   const [ofertasPorTienda, setOfertasPorTienda] = useState({});
   const [cargandoPorTienda, setCargandoPorTienda] = useState({});
   const [progresoPorTienda, setProgresoPorTienda] = useState({});
   const [productoSeleccionado, setProductoSeleccionado] = useState(null);
   const [grupoActivo, setGrupoActivo] = useState(null);
-  const [terminoFiltroCarrefour, setTerminoFiltroCarrefour] = useState("TODOS");
+  const [terminoFiltroPorTienda, setTerminoFiltroPorTienda] = useState(() =>
+    Object.fromEntries(COLUMNAS.map((key) => [key, "TODOS"])),
+  );
 
   const canceladoRef = useRef(false);
 
@@ -216,11 +282,10 @@ const Ofertas = () => {
     setProgresoPorTienda((prev) => ({ ...prev, [key]: 0 }));
 
     const tareas = TERMINOS_CANASTA.map((termino) => async () => {
-      const resultado = await buscarOfertasDeTermino(
-        key,
-        config.mapear,
-        termino,
-      );
+      const resultado =
+        key === "coto"
+          ? await buscarOfertasDeCotoTermino(termino)
+          : await buscarOfertasDeTermino(key, config.mapear, termino);
       if (!canceladoRef.current) {
         setProgresoPorTienda((prev) => ({
           ...prev,
@@ -249,21 +314,7 @@ const Ofertas = () => {
   useEffect(() => {
     canceladoRef.current = false;
 
-    // LÓGICA DE FETCH PARA TESTING (habilitar de a un supermercado por vez):
-    // [ACTIVADO] 1. Carrefour
-    fetchOfertasTienda("carrefour");
-
-    // [PAUSADO] 2. Dia
-    // fetchOfertasTienda("dia");
-
-    // [PAUSADO] 3. ChangoMas
-    // fetchOfertasTienda("changomas");
-
-    // [PAUSADO] 4. Vea
-    // fetchOfertasTienda("vea");
-
-    // [PAUSADO] 5. Coto
-    // fetchOfertasTienda("coto");
+    COLUMNAS.forEach((key) => fetchOfertasTienda(key));
 
     return () => {
       canceladoRef.current = true;
@@ -286,57 +337,77 @@ const Ofertas = () => {
 
   const totalTareas = TERMINOS_CANASTA.length;
 
-  const ofertasCarrefour = ofertasPorTienda.carrefour || [];
-
-  const conteoPorTerminoCarrefour = useMemo(() => {
-    const conteo = {};
-    ofertasCarrefour.forEach((p) => {
-      if (p.termino) conteo[p.termino] = (conteo[p.termino] || 0) + 1;
+  // Conteo por término y lista filtrada+ordenada, calculados por igual para
+  // las 5 columnas a partir de ofertasPorTienda + terminoFiltroPorTienda.
+  const conteoPorTerminoPorTienda = useMemo(() => {
+    const resultado = {};
+    COLUMNAS.forEach((key) => {
+      const conteo = {};
+      (ofertasPorTienda[key] || []).forEach((p) => {
+        if (p.termino) conteo[p.termino] = (conteo[p.termino] || 0) + 1;
+      });
+      resultado[key] = conteo;
     });
-    return conteo;
-  }, [ofertasCarrefour]);
+    return resultado;
+  }, [ofertasPorTienda]);
 
-  const ofertasCarrefourFiltradas = useMemo(() => {
-    if (terminoFiltroCarrefour === "TODOS") return ofertasCarrefour;
-    return ofertasCarrefour.filter(
-      (p) => p.termino === terminoFiltroCarrefour,
-    );
-  }, [ofertasCarrefour, terminoFiltroCarrefour]);
+  const ofertasFiltradasPorTienda = useMemo(() => {
+    const resultado = {};
+    COLUMNAS.forEach((key) => {
+      const ofertas = ofertasPorTienda[key] || [];
+      const termino = terminoFiltroPorTienda[key] || "TODOS";
+      const filtradas =
+        termino === "TODOS"
+          ? ofertas
+          : ofertas.filter((p) => p.termino === termino);
+      resultado[key] = ordenarPorPrecioRelativo(filtradas);
+    });
+    return resultado;
+  }, [ofertasPorTienda, terminoFiltroPorTienda]);
+
+  const setTerminoFiltro = (key, valor) =>
+    setTerminoFiltroPorTienda((prev) => ({ ...prev, [key]: valor }));
 
   return (
-    <div className="text-white">
-      <div className="flex items-center justify-between gap-2 mb-4">
-        <h1 className="text-xl font-bold">Ofertas destacadas</h1>
-        <span className="text-xs text-slate-400">
-          {todasLasOfertas.length} ofertas encontradas
+    <div className="text-white px-2 sm:px-4">
+      <header className="flex items-center justify-between mb-4">
+        <button
+          onClick={() => navigate("/")}
+          className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-4 py-2 rounded-lg border border-slate-700 transition-colors"
+        >
+          ← Volver
+        </button>
+
+        <h1 className="text-xl md:text-2xl font-bold text-slate-100 tracking-wide text-center">
+          Ofertas Destacadas
+        </h1>
+
+        <span className="bg-slate-800 border border-slate-700 text-emerald-400 text-xs md:text-sm px-3 py-1.5 rounded-full font-semibold">
+          {todasLasOfertas.length} ofertas
         </span>
-      </div>
+      </header>
 
       <ProductMatchContext.Provider value={productMatchValue}>
         <div className="flex flex-col gap-3 lg:grid lg:grid-cols-5 lg:gap-3 lg:h-[calc(100vh-160px)] lg:items-stretch">
           {COLUMNAS.map((key) => (
             <ColumnaTienda
               key={key}
+              tiendaKey={key}
               nombre={TIENDAS_OFERTAS[key].nombre}
               logo={SUPERMARKET_LOGOS[key]}
-              ofertas={
-                key === "carrefour"
-                  ? ofertasCarrefourFiltradas
-                  : ofertasPorTienda[key] || []
-              }
+              ofertas={ofertasFiltradasPorTienda[key] || []}
               cargando={!!cargandoPorTienda[key]}
               progreso={progresoPorTienda[key] || 0}
               totalTareas={totalTareas}
               onSeleccionar={setProductoSeleccionado}
               selectorTermino={
-                key === "carrefour" ? (
-                  <SelectorTermino
-                    terminoSeleccionado={terminoFiltroCarrefour}
-                    onChange={setTerminoFiltroCarrefour}
-                    conteoPorTermino={conteoPorTerminoCarrefour}
-                    totalOfertas={ofertasCarrefour.length}
-                  />
-                ) : null
+                <SelectorTermino
+                  id={`filtro-canasta-${key}`}
+                  terminoSeleccionado={terminoFiltroPorTienda[key] || "TODOS"}
+                  onChange={(valor) => setTerminoFiltro(key, valor)}
+                  conteoPorTermino={conteoPorTerminoPorTienda[key] || {}}
+                  totalOfertas={(ofertasPorTienda[key] || []).length}
+                />
               }
             />
           ))}

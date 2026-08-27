@@ -4,10 +4,10 @@ export const TERMINOS_CANASTA = [
   "aceite", "arroz", "azucar", "cafe tostado", "caldos", "dulce de leche",
   "ketchup", "mayonesa", "leche", "manteca", "mermeladas", "mostaza",
   "harina", "pure de tomates", "fideos", "queso", "salsa", "yerba",
-  "traviatas", "galletitas", "masitas", "antigrasa", "desodorante",
+  "galletitas", "masitas", "antigrasa", "desodorante",
   "detergente", "jabon liquido", "lavandina", "papel higienico",
   "suavizante", "shampoo", "crema enjuague", "toallitas", "carnes",
-  "pollo", "jabon", "dentrifico", "perfume",
+  "pollo", "jabon", "dentrifico", "perfume", "fiambre"
 ];
 
 
