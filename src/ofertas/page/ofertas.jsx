@@ -51,6 +51,10 @@ const buscarOfertasDeTermino = async (tienda, mapear, termino) => {
     const data = await res.json();
     if (!Array.isArray(data)) return [];
 
+    if (tienda === "vea") {
+      console.log(`📦 JSON Crudo de VEA para [${termino}]:`, data);
+    }
+
     // Solo ítems con stock real (defensa adicional, independiente del filtro de cada mapeador)
     const dataConStock = data.filter((item) => {
       const offer = item?.items?.[0]?.sellers?.[0]?.commertialOffer;
@@ -112,7 +116,7 @@ const TarjetaOferta = ({ prod, onSeleccionar }) => {
       onClick={() => onSeleccionar(prod)}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={`w-[220px] sm:w-[280px] bg-slate-800 rounded-lg p-2.5 sm:p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
+      className={`w-[220px] sm:w-[280px] shrink-0 snap-start lg:w-full lg:snap-align-none bg-slate-800 rounded-lg p-2.5 sm:p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
     >
       <div>
         <div className="h-24 sm:h-26 w-full shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden mb-1.5">
@@ -148,7 +152,9 @@ const TarjetaOferta = ({ prod, onSeleccionar }) => {
         <hr className="border-slate-800 my-1.5" />
         <div className="flex items-center justify-between gap-1 text-xs">
           <span className="text-slate-400 font-medium truncate text-[11px]">
-            {formatearPrecioPorUnidad(prod.precio, prod.contenido) || ""}
+            {prod.precioPorUnidad ||
+              formatearPrecioPorUnidad(prod.precio, prod.contenido) ||
+              ""}
           </span>
           <span className="text-slate-400 font-normal text-[11px] px-1 whitespace-nowrap">
             ${prod.listPrice.toLocaleString("es-AR")}
@@ -166,29 +172,23 @@ const TERMINOS_CANASTA_ORDENADOS = [...TERMINOS_CANASTA].sort((a, b) =>
   a.localeCompare(b, "es", { sensitivity: "base" }),
 );
 
-const SelectorTermino = ({
-  id,
+const SelectorTerminoGlobal = ({
   terminoSeleccionado,
   onChange,
-  conteoPorTermino,
+  conteoGlobalPorTermino,
   totalOfertas,
 }) => (
-  <div className="w-full px-3 py-2 border-b border-slate-700 bg-slate-900/60 shrink-0 flex flex-col gap-1">
-    <label
-      htmlFor={id}
-      className="text-[10px] text-slate-400 font-medium uppercase tracking-wider"
-    >
-      Filtrar por categoría
-    </label>
+  <div className="w-full max-w-sm mx-auto mb-4">
     <select
-      id={id}
+      id="filtro-canasta-global"
+      aria-label="Filtrar por categoría"
       value={terminoSeleccionado}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full px-2 py-1.5 border border-slate-700 rounded-lg bg-slate-800 text-slate-100 shadow-sm text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500"
+      className="w-full px-3 py-2 border border-slate-700 rounded-lg bg-slate-800 text-slate-100 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
     >
       <option value="TODOS">TODOS ({totalOfertas})</option>
       {TERMINOS_CANASTA_ORDENADOS.map((termino) => {
-        const cantidad = conteoPorTermino[termino] || 0;
+        const cantidad = conteoGlobalPorTermino[termino] || 0;
         if (cantidad === 0) return null;
         return (
           <option key={termino} value={termino}>
@@ -200,9 +200,9 @@ const SelectorTermino = ({
   </div>
 );
 
-const SpinnerDia = ({ progreso, totalTareas }) => (
+const SpinnerCarga = ({ progreso, totalTareas }) => (
   <div className="flex flex-col items-center justify-center gap-3 mt-6">
-    <div className="h-10 w-10 rounded-full border-4 border-red-500/20 border-t-red-500 animate-spin" />
+    <div className="h-10 w-10 rounded-full border-4 border-emerald-500/20 border-t-emerald-500 animate-spin" />
     <p className="text-center text-slate-400 text-xs">
       Relevando canasta básica... {progreso}/{totalTareas}
     </p>
@@ -210,7 +210,6 @@ const SpinnerDia = ({ progreso, totalTareas }) => (
 );
 
 const ColumnaTienda = ({
-  tiendaKey,
   nombre,
   logo,
   ofertas,
@@ -218,7 +217,6 @@ const ColumnaTienda = ({
   progreso,
   totalTareas,
   onSeleccionar,
-  selectorTermino,
 }) => (
   <div className="bg-slate-950/40 border-2 border-slate-600 rounded-xl overflow-hidden flex flex-col lg:h-full lg:min-w-0">
     <div className="flex justify-between items-center bg-slate-800 p-3 border-b border-slate-700 shrink-0">
@@ -233,27 +231,21 @@ const ColumnaTienda = ({
       </span>
     </div>
 
-    {selectorTermino}
-
     <div className="flex-1 lg:overflow-y-auto lg:min-h-0 scroll-tienda p-2">
       {cargando && ofertas.length === 0 ? (
-        tiendaKey === "dia" ? (
-          <SpinnerDia progreso={progreso} totalTareas={totalTareas} />
-        ) : (
-          <p className="text-center text-slate-400 text-xs mt-6">
-            Relevando canasta básica... {progreso}/{totalTareas}
-          </p>
-        )
+        <SpinnerCarga progreso={progreso} totalTareas={totalTareas} />
       ) : ofertas.length === 0 ? (
         <p className="text-center text-slate-500 text-xs mt-6">
           Sin ofertas relevadas.
         </p>
       ) : (
-        <div className="flex justify-center gap-2 overflow-x-auto pb-2 snap-x snap-mandatory [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-col lg:items-center lg:overflow-x-visible lg:pb-0 lg:snap-none">
+        <div className="flex justify-start gap-2 overflow-x-auto px-2 pb-2 snap-x snap-mandatory scroll-px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-col lg:items-stretch lg:overflow-x-visible lg:px-0 lg:pb-0 lg:snap-none">
           {ofertas.map((prod) => (
-            <div key={prod.id} className="shrink-0 snap-start">
-              <TarjetaOferta prod={prod} onSeleccionar={onSeleccionar} />
-            </div>
+            <TarjetaOferta
+              key={prod.id}
+              prod={prod}
+              onSeleccionar={onSeleccionar}
+            />
           ))}
         </div>
       )}
@@ -268,9 +260,7 @@ const Ofertas = () => {
   const [progresoPorTienda, setProgresoPorTienda] = useState({});
   const [productoSeleccionado, setProductoSeleccionado] = useState(null);
   const [grupoActivo, setGrupoActivo] = useState(null);
-  const [terminoFiltroPorTienda, setTerminoFiltroPorTienda] = useState(() =>
-    Object.fromEntries(COLUMNAS.map((key) => [key, "TODOS"])),
-  );
+  const [terminoFiltroGlobal, setTerminoFiltroGlobal] = useState("TODOS");
 
   const canceladoRef = useRef(false);
 
@@ -314,7 +304,13 @@ const Ofertas = () => {
   useEffect(() => {
     canceladoRef.current = false;
 
-    COLUMNAS.forEach((key) => fetchOfertasTienda(key));
+    const cargarSecuencial = async () => {
+      for (const key of COLUMNAS) {
+        if (canceladoRef.current) return;
+        await fetchOfertasTienda(key);
+      }
+    };
+    cargarSecuencial();
 
     return () => {
       canceladoRef.current = true;
@@ -337,40 +333,32 @@ const Ofertas = () => {
 
   const totalTareas = TERMINOS_CANASTA.length;
 
-  // Conteo por término y lista filtrada+ordenada, calculados por igual para
-  // las 5 columnas a partir de ofertasPorTienda + terminoFiltroPorTienda.
-  const conteoPorTerminoPorTienda = useMemo(() => {
-    const resultado = {};
-    COLUMNAS.forEach((key) => {
-      const conteo = {};
-      (ofertasPorTienda[key] || []).forEach((p) => {
-        if (p.termino) conteo[p.termino] = (conteo[p.termino] || 0) + 1;
-      });
-      resultado[key] = conteo;
+  // Conteo global por término (suma entre las 5 tiendas) y lista filtrada+ordenada
+  // por columna, a partir de ofertasPorTienda + terminoFiltroGlobal.
+  const conteoGlobalPorTermino = useMemo(() => {
+    const conteo = {};
+    todasLasOfertas.forEach((p) => {
+      if (p.termino) conteo[p.termino] = (conteo[p.termino] || 0) + 1;
     });
-    return resultado;
-  }, [ofertasPorTienda]);
+    return conteo;
+  }, [todasLasOfertas]);
 
   const ofertasFiltradasPorTienda = useMemo(() => {
     const resultado = {};
     COLUMNAS.forEach((key) => {
       const ofertas = ofertasPorTienda[key] || [];
-      const termino = terminoFiltroPorTienda[key] || "TODOS";
       const filtradas =
-        termino === "TODOS"
+        terminoFiltroGlobal === "TODOS"
           ? ofertas
-          : ofertas.filter((p) => p.termino === termino);
+          : ofertas.filter((p) => p.termino === terminoFiltroGlobal);
       resultado[key] = ordenarPorPrecioRelativo(filtradas);
     });
     return resultado;
-  }, [ofertasPorTienda, terminoFiltroPorTienda]);
-
-  const setTerminoFiltro = (key, valor) =>
-    setTerminoFiltroPorTienda((prev) => ({ ...prev, [key]: valor }));
+  }, [ofertasPorTienda, terminoFiltroGlobal]);
 
   return (
     <div className="text-white px-2 sm:px-4">
-      <header className="flex items-center justify-between mb-4">
+      <header className="flex items-center justify-between mb-3">
         <button
           onClick={() => navigate("/")}
           className="bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm px-4 py-2 rounded-lg border border-slate-700 transition-colors"
@@ -378,21 +366,30 @@ const Ofertas = () => {
           ← Volver
         </button>
 
-        <h1 className="text-xl md:text-2xl font-bold text-slate-100 tracking-wide text-center">
-          Ofertas Destacadas
-        </h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-base sm:text-2xl font-extrabold tracking-tight whitespace-nowrap bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">
+            Ofertas Destacadas
+          </h1>
+          <span className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-full px-3 py-1 text-xs font-semibold whitespace-nowrap">
+            {todasLasOfertas.length} ofertas
+          </span>
+        </div>
 
-        <span className="bg-slate-800 border border-slate-700 text-emerald-400 text-xs md:text-sm px-3 py-1.5 rounded-full font-semibold">
-          {todasLasOfertas.length} ofertas
-        </span>
+        <div className="w-[92px]" aria-hidden="true" />
       </header>
 
+      <SelectorTerminoGlobal
+        terminoSeleccionado={terminoFiltroGlobal}
+        onChange={setTerminoFiltroGlobal}
+        conteoGlobalPorTermino={conteoGlobalPorTermino}
+        totalOfertas={todasLasOfertas.length}
+      />
+
       <ProductMatchContext.Provider value={productMatchValue}>
-        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-5 lg:gap-3 lg:h-[calc(100vh-160px)] lg:items-stretch">
+        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-5 lg:gap-3 lg:h-[calc(100vh-200px)] lg:items-stretch">
           {COLUMNAS.map((key) => (
             <ColumnaTienda
               key={key}
-              tiendaKey={key}
               nombre={TIENDAS_OFERTAS[key].nombre}
               logo={SUPERMARKET_LOGOS[key]}
               ofertas={ofertasFiltradasPorTienda[key] || []}
@@ -400,15 +397,6 @@ const Ofertas = () => {
               progreso={progresoPorTienda[key] || 0}
               totalTareas={totalTareas}
               onSeleccionar={setProductoSeleccionado}
-              selectorTermino={
-                <SelectorTermino
-                  id={`filtro-canasta-${key}`}
-                  terminoSeleccionado={terminoFiltroPorTienda[key] || "TODOS"}
-                  onChange={(valor) => setTerminoFiltro(key, valor)}
-                  conteoPorTermino={conteoPorTerminoPorTienda[key] || {}}
-                  totalOfertas={(ofertasPorTienda[key] || []).length}
-                />
-              }
             />
           ))}
         </div>
@@ -459,10 +447,12 @@ const Ofertas = () => {
 
             <div className="flex justify-between items-end border-t border-slate-700/60 pt-3">
               <span className="text-xs text-slate-500 font-medium">
-                {formatearPrecioPorUnidad(
-                  productoSeleccionado.precio,
-                  productoSeleccionado.contenido,
-                ) || ""}
+                {productoSeleccionado.precioPorUnidad ||
+                  formatearPrecioPorUnidad(
+                    productoSeleccionado.precio,
+                    productoSeleccionado.contenido,
+                  ) ||
+                  ""}
               </span>
               <div className="flex items-center gap-2">
                 <span className="text-sm text-slate-400">

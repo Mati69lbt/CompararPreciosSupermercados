@@ -1,6 +1,7 @@
 // src/utils/mappers/mapearProductoCarrefour.js
 
 import { extraerDatosPapel } from '../../utils/extraerDatosPapel';
+import { formatearPrecioPorUnidad as formatearPrecioPorUnidadDesdeContenido } from '../../utils/precioPorUnidad';
 
 const extraerContenidoDelNombre = (nombre = "") => {
   if (!nombre) return null;
@@ -250,8 +251,9 @@ export const mapearProductoCarrefour = (dataOriginal = []) => {
         }
       }
 
-      const precioPorUnidad = extraerPrecioPorUnidad(item, precioFinal);
-      const datosPapel = extraerDatosPapel(nombre, precioFinal);
+      const precioPorUnidadMeta = extraerPrecioPorUnidad(item, precioFinal);
+      const datosPapel = extraerDatosPapel(nombre, precioFinal, 'carrefour');
+      const contenidoFinal = datosPapel?.contenido || contenido || 'Sin especificar';
 
       // Oferta directa por precio EXCLUSIVAMENTE: se ignoran Teasers/PromotionTeasers/clusters
       // (esos reflejan promos secundarias tipo "2do al 50%" o descuento por tarjeta, no un precio menor real).
@@ -279,8 +281,11 @@ export const mapearProductoCarrefour = (dataOriginal = []) => {
         listPrice: Number(seller?.ListPrice || precioFinal),
         marca,
         categoria: item['EC_Sección']?.[0] || item['EC_Familia']?.[0] || 'General',
-        contenido: datosPapel?.contenido || contenido || 'Sin especificar',
-        precioPorUnidad: datosPapel?.precioPorUnidad || precioPorUnidad,
+        contenido: contenidoFinal,
+        precioPorUnidad:
+          datosPapel?.precioPorUnidad ||
+          formatearPrecioPorUnidadDesdeContenido(Number(precioFinal), contenidoFinal) ||
+          precioPorUnidadMeta,
         promocion,
         imagenProducto,
         linkCompra: item.link || 'https://www.carrefour.com.ar',

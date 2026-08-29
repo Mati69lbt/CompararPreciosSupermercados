@@ -1,6 +1,7 @@
 // src/utils/mappers/mapearProdDia.js
 
 import { extraerDatosPapel } from '../../utils/extraerDatosPapel';
+import { formatearPrecioPorUnidad as formatearPrecioPorUnidadDesdeContenido } from '../../utils/precioPorUnidad';
 
 const extraerContenidoDeTexto = (texto = '') => {
   if (!texto) return '';
@@ -67,7 +68,7 @@ const normalizarUnidadMedida = (unidad = '') => {
   return unidad.toUpperCase();
 };
 
-const formatearPrecioPorUnidad = (precioPorUnd, unidadMedida) => {
+const formatearPrecioPorUnidadMeta = (precioPorUnd, unidadMedida) => {
   const valor = Number(precioPorUnd);
 
   if (!precioPorUnd || Number.isNaN(valor) || valor <= 0) return null;
@@ -109,7 +110,7 @@ export const mapearProductoDia = (dataOriginal = []) => {
         .toString()
         .trim()
         .toUpperCase();
-      const precioPorUnidad = formatearPrecioPorUnidad(precioPorUnd, unidadDeMedida);
+      const precioPorUnidadMeta = formatearPrecioPorUnidadMeta(precioPorUnd, unidadDeMedida);
       const esUnidadTipoUnidad = unidadDeMedida.includes('UD') || unidadDeMedida.includes('UN');
 
       let contenido = null;
@@ -146,7 +147,8 @@ export const mapearProductoDia = (dataOriginal = []) => {
         promocion = 'En oferta';
       }
 
-      const datosPapel = extraerDatosPapel(nombre, precioFinal);
+      const datosPapel = extraerDatosPapel(nombre, precioFinal, 'dia');
+      const contenidoFinal = datosPapel?.contenido || contenido || 'Sin especificar';
 
       return {
         id: `dia-${id}`,
@@ -156,8 +158,11 @@ export const mapearProductoDia = (dataOriginal = []) => {
         listPrice: Number(seller?.ListPrice || precioFinal),
         marca,
         categoria: item.categories?.[0]?.split('/')[1] || 'General',
-        contenido: datosPapel?.contenido || contenido || 'Sin especificar',
-        precioPorUnidad: datosPapel?.precioPorUnidad || precioPorUnidad,
+        contenido: contenidoFinal,
+        precioPorUnidad:
+          datosPapel?.precioPorUnidad ||
+          formatearPrecioPorUnidadDesdeContenido(Number(precioFinal), contenidoFinal) ||
+          precioPorUnidadMeta,
         promocion,
         imagenProducto,
         linkCompra: item.link || 'https://diaonline.supermercadosdia.com.ar',

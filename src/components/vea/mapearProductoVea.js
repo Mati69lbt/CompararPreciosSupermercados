@@ -6,7 +6,7 @@ const extraerContenidoDeTexto = (texto = '') => {
   if (!texto) return '';
 
   // 1. Prioridad: Peso y Volumen (GR, KG, ML, L)
-  const regexMedida = /(\d+(?:[\.,]\d+)?)\s*(lts?|litros?|ml|cc|cm3|grs?|gramos?|kgs?|kilos?|\bgr\b|\bkg\b|\bml\b|\bl\b)(?!\w)/i;
+  const regexMedida = /(\d+(?:[\.,]\d+)?)\s*(lts?|litros?|ml|cc|cm3|grs?|gramos?|kgs?|kilos?|\bgr\b|\bkg\b|\bml\b|\bl\b|g)(?!\w)/i;
   const matchMedida = texto.match(regexMedida);
 
   if (matchMedida) {
@@ -19,7 +19,7 @@ const extraerContenidoDeTexto = (texto = '') => {
 
     if (['l', 'lt', 'lts', 'litro', 'litros'].includes(unidad)) unidad = 'L';
     else if (['ml', 'cc', 'cm3'].includes(unidad)) unidad = 'ML';
-    else if (['g', 'gr', 'grs', 'gramos'].includes(unidad)) unidad = 'GR';
+    else if (['g', 'gr', 'grs', 'gramo', 'gramos'].includes(unidad)) unidad = 'GR';
     else if (['kg', 'kilo', 'kilos'].includes(unidad)) unidad = 'KG';
 
     return `${cantidad} ${unidad}`;
@@ -260,7 +260,7 @@ export const mapearProductoVea = (dataOriginal = []) => {
         promocion = 'En oferta';
       }
 
-      const datosPapel = extraerDatosPapel(nombre, precioFinal);
+      const datosPapel = extraerDatosPapel(nombre, precioFinal, 'vea');
 
       return {
         id: `vea-${id}`,

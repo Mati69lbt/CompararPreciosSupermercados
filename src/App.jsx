@@ -137,16 +137,16 @@ export default function App() {
     <div className="min-h-screen bg-slate-900 text-white">
       {!enOfertas && (
         <header className="sticky top-0 z-20 bg-slate-900/95 backdrop-blur border-b border-slate-800 p-2 sm:p-4">
-          <div className="max-w-3xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 md:items-stretch">
+          <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-4 md:items-stretch lg:flex lg:flex-row lg:items-center lg:justify-between lg:gap-4">
             <Link
               to="/ofertas"
-              className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-3 md:px-4 h-9 md:h-auto rounded-lg flex items-center justify-center text-xs md:text-sm transition-colors shadow-sm md:self-stretch"
+              className="bg-amber-500 hover:bg-amber-400 text-slate-900 font-bold px-3 md:px-4 h-9 md:h-auto rounded-lg flex items-center justify-center text-xs md:text-sm transition-colors shadow-sm md:self-stretch lg:h-9 lg:shrink-0"
             >
               Ofertas
             </Link>
 
-            <div className="flex flex-col gap-1.5 min-w-0">
-              <div className="flex gap-1.5 min-w-0">
+            <div className="flex flex-col gap-1.5 min-w-0 lg:flex-row lg:items-center lg:gap-3 lg:flex-1">
+              <div className="flex gap-1.5 min-w-0 lg:flex-1">
                 <input
                   type="text"
                   value={input}
@@ -163,12 +163,12 @@ export default function App() {
                 </button>
               </div>
 
-              <div className="flex gap-1.5 min-w-0">
+              <div className="flex gap-1.5 min-w-0 lg:shrink-0">
                 <select
                   value={filtroContenidoGlobal}
                   onChange={handleContenidoChange}
                   disabled={!busqueda}
-                  className="flex-1 min-w-0 bg-slate-800 border border-slate-700 text-slate-200 text-xs md:text-sm rounded-lg px-2 md:px-3 h-9 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50"
+                  className="flex-1 min-w-0 bg-slate-800 border border-slate-700 text-slate-200 text-xs md:text-sm rounded-lg px-2 md:px-3 h-9 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50 lg:w-36"
                 >
                   <option value="">
                     Medida ({medidasDisponiblesGlobal.length})
@@ -188,7 +188,7 @@ export default function App() {
                   value={filtroMarcaGlobal}
                   onChange={(e) => setFiltroMarcaGlobal(e.target.value)}
                   disabled={!busqueda}
-                  className="flex-1 min-w-0 bg-slate-800 border border-slate-700 text-slate-200 text-xs md:text-sm rounded-lg px-2 md:px-3 h-9 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50"
+                  className="flex-1 min-w-0 bg-slate-800 border border-slate-700 text-slate-200 text-xs md:text-sm rounded-lg px-2 md:px-3 h-9 focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:opacity-50 lg:w-40"
                 >
                   <option value="">Marca ({marcasConConteo.length})</option>
                   {marcasConConteo.map(({ nombre, cantidad }, i) => (

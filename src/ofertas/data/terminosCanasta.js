@@ -7,7 +7,8 @@ export const TERMINOS_CANASTA = [
   "galletitas", "masitas", "antigrasa", "desodorante",
   "detergente", "jabon liquido", "lavandina", "papel higienico",
   "suavizante", "shampoo", "crema enjuague", "toallitas", "carnes",
-  "pollo", "jabon", "dentrifico", "perfume", "fiambre"
+  "pollo", "jabon", "dentrifico", "perfume", "fiambre", "cerveza", "vino",
+  "gaseosa", "salchichas", "pastas", "fernet"
 ];
 
 

@@ -146,7 +146,7 @@ export const mapearProductoChangoMas = (dataOriginal = []) => {
 
       const contenidoFinal = contenido || 'Sin especificar';
       const precioPorUnidad = calcularPrecioPorUnidad(precioFinal, contenidoFinal);
-      const datosPapel = extraerDatosPapel(nombre, precioFinal);
+      const datosPapel = extraerDatosPapel(nombre, precioFinal, 'changomas');
 
       return {
         id: `changomas-${id}`,

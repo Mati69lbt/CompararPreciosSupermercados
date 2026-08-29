@@ -172,7 +172,7 @@ export const mapearProductoCoto = (dataOriginal) => {
     const descuentoDirecto = extraerDescuentoDirecto(d.discounts, precioFinal);
     const precioMostrado = descuentoDirecto?.precio ?? precioFinal;
 
-    const datosPapel = extraerDatosPapel(nombre, precioMostrado);
+    const datosPapel = extraerDatosPapel(nombre, precioMostrado, 'coto');
 
     return {
       id: `coto-${id}`,
