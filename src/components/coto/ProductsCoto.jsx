@@ -7,7 +7,7 @@ import { ordenarPorPrecioRelativo } from "../../utils/precioPorUnidad";
 
 const PRODUCTOS_POR_PAGINA = 50;
 
-const TarjetaProducto = ({ prod, onSeleccionar }) => {
+const TarjetaProducto = ({ prod, onSeleccionar, vistaUnica }) => {
   const { claseBorde, onMouseEnter, onMouseLeave } = useEstiloTarjeta("coto", prod.id);
   const tieneDescuento = prod.listPrice > prod.precio;
   const descuento = tieneDescuento
@@ -19,7 +19,7 @@ const TarjetaProducto = ({ prod, onSeleccionar }) => {
       onClick={() => onSeleccionar(prod)}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={`w-[220px] sm:w-[240px] shrink-0 snap-start lg:w-auto lg:shrink lg:snap-align-none bg-slate-800 rounded-lg p-2.5 sm:p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
+      className={`${vistaUnica ? "w-full max-w-[240px]" : "w-[220px] sm:w-[240px] shrink-0 snap-start lg:w-auto lg:shrink lg:snap-align-none"} bg-slate-800 rounded-lg p-2.5 sm:p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
     >
       <div>
         <div className="h-24 sm:h-26 w-full shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden mb-1.5">
@@ -80,6 +80,7 @@ const ProductsCoto = ({
   filtroMarca = "",
   onCount,
   onProducts,
+  vistaUnica = false,
 }) => {
   const [productos, setProductos] = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -161,17 +162,26 @@ const ProductsCoto = ({
   }, [productosFiltrados, onCount]);
 
   return (
-    <div className="bg-slate-900 text-white flex flex-col">
+    <div
+      className={`bg-slate-900 text-white flex flex-col ${vistaUnica ? "max-w-7xl mx-auto w-full px-2 sm:px-4" : ""}`}
+    >
       <div className="p-2">
         {cargando ? (
           <p className="text-center text-slate-400 text-xs py-4">Cargando...</p>
         ) : (
-          <div className="flex flex-row gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-1 lg:flex-col lg:overflow-visible lg:snap-none lg:pb-0">
+          <div
+            className={
+              vistaUnica
+                ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 justify-items-center"
+                : "flex flex-row gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-1 lg:flex-col lg:overflow-visible lg:snap-none lg:pb-0"
+            }
+          >
             {productosFiltrados.map((prod) => (
               <TarjetaProducto
                 key={prod.id}
                 prod={prod}
                 onSeleccionar={setProductoSeleccionado}
+                vistaUnica={vistaUnica}
               />
             ))}
           </div>

@@ -22,6 +22,11 @@ base: "/",
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api-changomas/, ''),
       },
+      '/promos-vea': {
+        target: 'https://www.vea.com.ar',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/promos-vea/, ''),
+      },
       '/api-vea': {
         target: 'https://www.vea.com.ar/api/catalog_system/pub/products/search',
         changeOrigin: true,

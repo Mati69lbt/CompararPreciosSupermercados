@@ -7,7 +7,7 @@ const extraerYNormalizarContenido = (nombre) => {
   if (!nombre) return "Sin especificar";
 
   // Busca patrones de números (enteros o decimales) seguidos de unidades comunes
-  const match = nombre.match(/(\d+(?:[.,]\d+)?)\s*(LTS?|LT|L|ML|KG|KGS|GR|GMS|G)\b/i);
+  const match = nombre.match(/(\d+(?:[.,]\d+)?)\s*(LTS?|LT|L|ML|KG|KGS|GRMS?|GR|GMS|G)\b/i);
 
   if (!match) return "Sin especificar";
 
@@ -17,7 +17,7 @@ const extraerYNormalizarContenido = (nombre) => {
   // Agrupar todas las variantes de Litro a "L"
   if (["LT", "LTS", "L"].includes(unidad)) {
     unidad = "L";
-  } else if (["G", "GMS", "GR"].includes(unidad)) {
+  } else if (["G", "GMS", "GR", "GRM", "GRMS"].includes(unidad)) {
     unidad = "GR";
   } else if (["KG", "KGS"].includes(unidad)) {
     unidad = "KG";

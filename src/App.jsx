@@ -52,6 +52,7 @@ export default function App() {
   const [busqueda, setBusqueda] = useState("");
   const [conteos, setConteos] = useState({});
   const [productosPorTienda, setProductosPorTienda] = useState({});
+  const [tiendaSeleccionada, setTiendaSeleccionada] = useState("TODOS");
 
   // Filtros globales
   const [filtroContenidoGlobal, setFiltroContenidoGlobal] = useState("");
@@ -126,6 +127,16 @@ export default function App() {
     setFiltroMarcaGlobal("");
   };
 
+  // Si hay una tienda específica seleccionada, solo se monta (y por lo tanto
+  // solo hace fetch) el componente de esa tienda; las demás ni se renderizan.
+  const tiendasVisibles = useMemo(
+    () =>
+      tiendaSeleccionada === "TODOS"
+        ? TIENDAS
+        : TIENDAS.filter((t) => t.key === tiendaSeleccionada),
+    [tiendaSeleccionada],
+  );
+
   const handleProductosTienda = (key, productos) => {
     setProductosPorTienda((prev) => {
       if (prev[key] === productos) return prev;
@@ -147,6 +158,20 @@ export default function App() {
 
             <div className="flex flex-col gap-1.5 min-w-0 lg:flex-row lg:items-center lg:gap-3 lg:flex-1">
               <div className="flex gap-1.5 min-w-0 lg:flex-1">
+                <select
+                  value={tiendaSeleccionada}
+                  onChange={(e) => setTiendaSeleccionada(e.target.value)}
+                  aria-label="Filtrar por supermercado"
+                  className="shrink-0 bg-slate-800 border border-slate-700 text-slate-200 text-xs md:text-sm rounded-lg px-2 md:px-3 h-9 focus:ring-2 focus:ring-emerald-500 focus:outline-none lg:w-40"
+                >
+                  <option value="TODOS">🔍 Todos</option>
+                  {TIENDAS.map(({ key, nombre }) => (
+                    <option key={key} value={key}>
+                      {nombre}
+                    </option>
+                  ))}
+                </select>
+
                 <input
                   type="text"
                   value={input}
@@ -215,8 +240,14 @@ export default function App() {
                 </p>
               ) : (
                 <ProductMatchContext.Provider value={productMatchValue}>
-                  <div className="flex flex-col gap-3 lg:grid lg:grid-cols-5 lg:gap-3 lg:h-full lg:items-stretch">
-                    {TIENDAS.map(({ key, nombre, logo, Componente }) => (
+                  <div
+                    className={`flex flex-col gap-3 lg:grid lg:gap-3 lg:h-full lg:items-stretch ${
+                      tiendasVisibles.length > 1
+                        ? "lg:grid-cols-5"
+                        : "lg:grid-cols-1 max-w-7xl mx-auto w-full"
+                    }`}
+                  >
+                    {tiendasVisibles.map(({ key, nombre, logo, Componente }) => (
                       <div
                         key={key}
                         className="bg-slate-950/40 border-2 border-slate-600 rounded-xl overflow-hidden flex flex-col lg:h-full lg:min-w-0"
@@ -249,6 +280,7 @@ export default function App() {
                             onProducts={(productos) =>
                               handleProductosTienda(key, productos)
                             }
+                            vistaUnica={tiendasVisibles.length === 1}
                           />
                         </div>
                       </div>

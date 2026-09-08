@@ -14,6 +14,15 @@ import {
 } from "../../context/ProductMatchContext";
 import { TERMINOS_CANASTA } from "../data/terminosCanasta";
 import { ejecutarConLimite } from "../utils/ejecutarConLimite";
+import {
+  guardarConTTL,
+  leerConTTL,
+  TTL_FILTROS_OFERTAS,
+  agregarAlHistorial,
+  eliminarDelHistorial,
+  leerHistorial,
+  TTL_HISTORIAL_BUSQUEDA,
+} from "../utils/persistenciaFiltros";
 
 import { mapearProductoCarrefour } from "../../components/carrefour/mapearProdCarrefour";
 import { mapearProductoDia } from "../../components/Dia/mapearProdDia";
@@ -51,9 +60,9 @@ const buscarOfertasDeTermino = async (tienda, mapear, termino) => {
     const data = await res.json();
     if (!Array.isArray(data)) return [];
 
-    if (tienda === "vea") {
-      console.log(`📦 JSON Crudo de VEA para [${termino}]:`, data);
-    }
+    // if (tienda === "vea") {
+    //   console.log(`📦 JSON Crudo de VEA para [${termino}]:`, data);
+    // }
 
     // Solo ítems con stock real (defensa adicional, independiente del filtro de cada mapeador)
     const dataConStock = data.filter((item) => {
@@ -61,7 +70,8 @@ const buscarOfertasDeTermino = async (tienda, mapear, termino) => {
       return offer?.IsAvailable === true && (offer?.AvailableQuantity ?? 0) > 0;
     });
 
-    return mapear(dataConStock)
+    const mapeados = await mapear(dataConStock);
+    return mapeados
       .map((p) => ({ ...p, logoTienda: SUPERMARKET_LOGOS[tienda] }))
       .filter((p) => p.listPrice > p.precio)
       .map((p) => ({
@@ -105,7 +115,7 @@ const buscarOfertasDeCotoTermino = async (termino) => {
   }
 };
 
-const TarjetaOferta = ({ prod, onSeleccionar }) => {
+const TarjetaOferta = ({ prod, onSeleccionar, vistaUnica }) => {
   const { claseBorde, onMouseEnter, onMouseLeave } = useEstiloTarjeta(
     prod.tienda,
     prod.id,
@@ -116,7 +126,7 @@ const TarjetaOferta = ({ prod, onSeleccionar }) => {
       onClick={() => onSeleccionar(prod)}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={`w-[220px] sm:w-[280px] shrink-0 snap-start lg:w-full lg:snap-align-none bg-slate-800 rounded-lg p-2.5 sm:p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
+      className={`${vistaUnica ? "w-full max-w-[240px]" : "w-[220px] sm:w-[280px] shrink-0 snap-start lg:w-full lg:snap-align-none"} bg-slate-800 rounded-lg p-2.5 sm:p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
     >
       <div>
         <div className="h-24 sm:h-26 w-full shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden mb-1.5">
@@ -172,19 +182,94 @@ const TERMINOS_CANASTA_ORDENADOS = [...TERMINOS_CANASTA].sort((a, b) =>
   a.localeCompare(b, "es", { sensitivity: "base" }),
 );
 
-const SelectorTerminoGlobal = ({
+// Claves de localStorage para persistir los filtros del buscador (ver TTL_FILTROS_OFERTAS)
+const CLAVE_BUSQUEDA = "ofertas.filtros.busqueda";
+const CLAVE_TERMINO = "ofertas.filtros.termino";
+const CLAVE_MARCA = "ofertas.filtros.marca";
+const CLAVE_TIENDA = "ofertas.filtros.tienda";
+const CLAVE_HISTORIAL_BUSQUEDA = "ofertas.historial.busqueda";
+
+const BarraFiltros = ({
+  busqueda,
+  onBusquedaChange,
+  onConfirmarBusqueda,
+  historial,
+  mostrarHistorial,
+  onMostrarHistorial,
+  onOcultarHistorial,
+  onSeleccionarHistorial,
+  onEliminarHistorial,
   terminoSeleccionado,
-  onChange,
+  onTerminoChange,
   conteoGlobalPorTermino,
   totalOfertas,
+  marcaSeleccionada,
+  onMarcaChange,
+  marcasDisponibles,
+  tiendaSeleccionada,
+  onTiendaChange,
 }) => (
-  <div className="w-full max-w-sm mx-auto mb-4">
+  <div className="w-full max-w-3xl mx-auto mb-4 flex flex-col sm:flex-row gap-2">
+    <div className="relative w-full sm:flex-1">
+      <input
+        type="text"
+        value={busqueda}
+        onChange={(e) => onBusquedaChange(e.target.value)}
+        onFocus={onMostrarHistorial}
+        onBlur={() => setTimeout(onOcultarHistorial, 150)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onConfirmarBusqueda(busqueda);
+        }}
+        placeholder="Buscar oferta por nombre..."
+        aria-label="Buscar oferta por nombre"
+        className="w-full px-3 py-2 border border-slate-700 rounded-lg bg-slate-800 text-slate-100 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+      />
+      {mostrarHistorial && historial.length > 0 && (
+        <ul className="absolute z-20 mt-1 w-full max-h-56 overflow-y-auto bg-slate-800 border border-slate-700 rounded-lg shadow-lg text-sm">
+          {historial.map((item) => (
+            <li
+              key={item.valor}
+              className="flex items-center justify-between px-3 py-1.5 hover:bg-slate-700 cursor-pointer"
+              onMouseDown={() => onSeleccionarHistorial(item.valor)}
+            >
+              <span className="truncate text-slate-200">{item.valor}</span>
+              <button
+                type="button"
+                aria-label={`Eliminar "${item.valor}" del historial`}
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  onEliminarHistorial(item.valor);
+                }}
+                className="ml-2 shrink-0 text-slate-500 hover:text-slate-200"
+              >
+                ✕
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+
+    <select
+      aria-label="Filtrar por supermercado"
+      value={tiendaSeleccionada}
+      onChange={(e) => onTiendaChange(e.target.value)}
+      className="w-full sm:w-48 px-3 py-2 border border-slate-700 rounded-lg bg-slate-800 text-slate-100 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+    >
+      <option value="TODOS">Todos los supermercados</option>
+      {COLUMNAS.map((key) => (
+        <option key={key} value={key}>
+          {TIENDAS_OFERTAS[key].nombre}
+        </option>
+      ))}
+    </select>
+
     <select
       id="filtro-canasta-global"
       aria-label="Filtrar por categoría"
       value={terminoSeleccionado}
-      onChange={(e) => onChange(e.target.value)}
-      className="w-full px-3 py-2 border border-slate-700 rounded-lg bg-slate-800 text-slate-100 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+      onChange={(e) => onTerminoChange(e.target.value)}
+      className="w-full sm:w-56 px-3 py-2 border border-slate-700 rounded-lg bg-slate-800 text-slate-100 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
     >
       <option value="TODOS">TODOS ({totalOfertas})</option>
       {TERMINOS_CANASTA_ORDENADOS.map((termino) => {
@@ -196,6 +281,20 @@ const SelectorTerminoGlobal = ({
           </option>
         );
       })}
+    </select>
+
+    <select
+      aria-label="Filtrar por marca"
+      value={marcaSeleccionada}
+      onChange={(e) => onMarcaChange(e.target.value)}
+      className="w-full sm:w-48 px-3 py-2 border border-slate-700 rounded-lg bg-slate-800 text-slate-100 shadow-sm text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+    >
+      <option value="TODAS">Todas las marcas</option>
+      {marcasDisponibles.map((marca) => (
+        <option key={marca} value={marca}>
+          {marca}
+        </option>
+      ))}
     </select>
   </div>
 );
@@ -217,8 +316,11 @@ const ColumnaTienda = ({
   progreso,
   totalTareas,
   onSeleccionar,
+  vistaUnica,
 }) => (
-  <div className="bg-slate-950/40 border-2 border-slate-600 rounded-xl overflow-hidden flex flex-col lg:h-full lg:min-w-0">
+  <div
+    className={`bg-slate-950/40 border-2 border-slate-600 rounded-xl overflow-hidden flex flex-col lg:h-full lg:min-w-0 ${vistaUnica ? "max-w-7xl mx-auto w-full" : ""}`}
+  >
     <div className="flex justify-between items-center bg-slate-800 p-3 border-b border-slate-700 shrink-0">
       <div className="flex items-center gap-2">
         {logo && <img src={logo} alt={nombre} className="h-6 object-contain" />}
@@ -239,12 +341,19 @@ const ColumnaTienda = ({
           Sin ofertas relevadas.
         </p>
       ) : (
-        <div className="flex justify-start gap-2 overflow-x-auto px-2 pb-2 snap-x snap-mandatory scroll-px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-col lg:items-stretch lg:overflow-x-visible lg:px-0 lg:pb-0 lg:snap-none">
+        <div
+          className={
+            vistaUnica
+              ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 justify-items-center"
+              : "flex justify-start gap-2 overflow-x-auto px-2 pb-2 snap-x snap-mandatory scroll-px-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex-col lg:items-stretch lg:overflow-x-visible lg:px-0 lg:pb-0 lg:snap-none"
+          }
+        >
           {ofertas.map((prod) => (
             <TarjetaOferta
               key={prod.id}
               prod={prod}
               onSeleccionar={onSeleccionar}
+              vistaUnica={vistaUnica}
             />
           ))}
         </div>
@@ -260,9 +369,69 @@ const Ofertas = () => {
   const [progresoPorTienda, setProgresoPorTienda] = useState({});
   const [productoSeleccionado, setProductoSeleccionado] = useState(null);
   const [grupoActivo, setGrupoActivo] = useState(null);
-  const [terminoFiltroGlobal, setTerminoFiltroGlobal] = useState("TODOS");
+  // Estado inicial de los filtros: se recupera de localStorage si no vencieron
+  // (TTL 3hs); si vencieron, leerConTTL ya los limpia solo y quedan los defaults.
+  const [terminoFiltroGlobal, setTerminoFiltroGlobal] = useState(
+    () => leerConTTL(CLAVE_TERMINO, TTL_FILTROS_OFERTAS) ?? "TODOS",
+  );
+  const [busqueda, setBusqueda] = useState(
+    () => leerConTTL(CLAVE_BUSQUEDA, TTL_FILTROS_OFERTAS) ?? "",
+  );
+  const [marcaFiltro, setMarcaFiltro] = useState(
+    () => leerConTTL(CLAVE_MARCA, TTL_FILTROS_OFERTAS) ?? "TODAS",
+  );
+  const [tiendaFiltro, setTiendaFiltro] = useState(
+    () => leerConTTL(CLAVE_TIENDA, TTL_FILTROS_OFERTAS) ?? "TODOS",
+  );
+  const [historialBusqueda, setHistorialBusqueda] = useState(() =>
+    leerHistorial(CLAVE_HISTORIAL_BUSQUEDA, TTL_HISTORIAL_BUSQUEDA),
+  );
+  const [mostrarHistorial, setMostrarHistorial] = useState(false);
 
   const canceladoRef = useRef(false);
+
+  const confirmarBusqueda = (valor) => {
+    if (!valor?.trim()) return;
+    setHistorialBusqueda(
+      agregarAlHistorial(
+        CLAVE_HISTORIAL_BUSQUEDA,
+        valor,
+        TTL_HISTORIAL_BUSQUEDA,
+      ),
+    );
+    setMostrarHistorial(false);
+  };
+
+  const seleccionarDelHistorial = (valor) => {
+    setBusqueda(valor);
+    confirmarBusqueda(valor);
+  };
+
+  const eliminarItemHistorial = (valor) => {
+    setHistorialBusqueda(
+      eliminarDelHistorial(
+        CLAVE_HISTORIAL_BUSQUEDA,
+        valor,
+        TTL_HISTORIAL_BUSQUEDA,
+      ),
+    );
+  };
+
+  useEffect(() => {
+    guardarConTTL(CLAVE_BUSQUEDA, busqueda);
+  }, [busqueda]);
+
+  useEffect(() => {
+    guardarConTTL(CLAVE_TERMINO, terminoFiltroGlobal);
+  }, [terminoFiltroGlobal]);
+
+  useEffect(() => {
+    guardarConTTL(CLAVE_MARCA, marcaFiltro);
+  }, [marcaFiltro]);
+
+  useEffect(() => {
+    guardarConTTL(CLAVE_TIENDA, tiendaFiltro);
+  }, [tiendaFiltro]);
 
   const fetchOfertasTienda = async (key) => {
     const config = TIENDAS_OFERTAS[key];
@@ -301,12 +470,20 @@ const Ofertas = () => {
     setCargandoPorTienda((prev) => ({ ...prev, [key]: false }));
   };
 
+  // Si hay una tienda específica seleccionada, solo se relevan sus ofertas
+  // (evita llamadas innecesarias a las otras 4 APIs).
+  const columnasACargar = useMemo(
+    () => (tiendaFiltro === "TODOS" ? COLUMNAS : [tiendaFiltro]),
+    [tiendaFiltro],
+  );
+
   useEffect(() => {
     canceladoRef.current = false;
 
     const cargarSecuencial = async () => {
-      for (const key of COLUMNAS) {
+      for (const key of columnasACargar) {
         if (canceladoRef.current) return;
+        if (ofertasPorTienda[key]) continue;
         await fetchOfertasTienda(key);
       }
     };
@@ -315,7 +492,8 @@ const Ofertas = () => {
     return () => {
       canceladoRef.current = true;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tiendaFiltro]);
 
   const todasLasOfertas = useMemo(
     () => Object.values(ofertasPorTienda).flat(),
@@ -343,18 +521,49 @@ const Ofertas = () => {
     return conteo;
   }, [todasLasOfertas]);
 
+  const marcasDisponibles = useMemo(() => {
+    const marcas = new Set();
+    todasLasOfertas.forEach((p) => {
+      if (p.marca) marcas.add(p.marca);
+    });
+    return Array.from(marcas).sort((a, b) =>
+      a.localeCompare(b, "es", { sensitivity: "base" }),
+    );
+  }, [todasLasOfertas]);
+
+  const busquedaNormalizada = busqueda.trim().toLowerCase();
+
   const ofertasFiltradasPorTienda = useMemo(() => {
     const resultado = {};
-    COLUMNAS.forEach((key) => {
+    columnasACargar.forEach((key) => {
       const ofertas = ofertasPorTienda[key] || [];
-      const filtradas =
-        terminoFiltroGlobal === "TODOS"
-          ? ofertas
-          : ofertas.filter((p) => p.termino === terminoFiltroGlobal);
+      const filtradas = ofertas.filter((p) => {
+        // Oferta real: precio de venta estrictamente menor al precio de lista.
+        // Ya viene garantizado desde el fetch, se reafirma acá como defensa.
+        if (!(p.listPrice > p.precio)) return false;
+        if (
+          terminoFiltroGlobal !== "TODOS" &&
+          p.termino !== terminoFiltroGlobal
+        )
+          return false;
+        if (marcaFiltro !== "TODAS" && p.marca !== marcaFiltro) return false;
+        if (
+          busquedaNormalizada &&
+          !(p.nombre || "").toLowerCase().includes(busquedaNormalizada)
+        )
+          return false;
+        return true;
+      });
       resultado[key] = ordenarPorPrecioRelativo(filtradas);
     });
     return resultado;
-  }, [ofertasPorTienda, terminoFiltroGlobal]);
+  }, [
+    ofertasPorTienda,
+    columnasACargar,
+    terminoFiltroGlobal,
+    marcaFiltro,
+    busquedaNormalizada,
+  ]);
 
   return (
     <div className="text-white px-2 sm:px-4">
@@ -378,16 +587,34 @@ const Ofertas = () => {
         <div className="w-[92px]" aria-hidden="true" />
       </header>
 
-      <SelectorTerminoGlobal
+      <BarraFiltros
+        busqueda={busqueda}
+        onBusquedaChange={setBusqueda}
+        onConfirmarBusqueda={confirmarBusqueda}
+        historial={historialBusqueda}
+        mostrarHistorial={mostrarHistorial}
+        onMostrarHistorial={() => setMostrarHistorial(true)}
+        onOcultarHistorial={() => setMostrarHistorial(false)}
+        onSeleccionarHistorial={seleccionarDelHistorial}
+        onEliminarHistorial={eliminarItemHistorial}
         terminoSeleccionado={terminoFiltroGlobal}
-        onChange={setTerminoFiltroGlobal}
+        onTerminoChange={setTerminoFiltroGlobal}
         conteoGlobalPorTermino={conteoGlobalPorTermino}
         totalOfertas={todasLasOfertas.length}
+        marcaSeleccionada={marcaFiltro}
+        onMarcaChange={setMarcaFiltro}
+        marcasDisponibles={marcasDisponibles}
+        tiendaSeleccionada={tiendaFiltro}
+        onTiendaChange={setTiendaFiltro}
       />
 
       <ProductMatchContext.Provider value={productMatchValue}>
-        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-5 lg:gap-3 lg:h-[calc(100vh-200px)] lg:items-stretch">
-          {COLUMNAS.map((key) => (
+        <div
+          className={`flex flex-col gap-3 lg:grid lg:gap-3 lg:h-[calc(100vh-200px)] lg:items-stretch ${
+            columnasACargar.length > 1 ? "lg:grid-cols-5" : "lg:grid-cols-1"
+          }`}
+        >
+          {columnasACargar.map((key) => (
             <ColumnaTienda
               key={key}
               nombre={TIENDAS_OFERTAS[key].nombre}
@@ -397,6 +624,7 @@ const Ofertas = () => {
               progreso={progresoPorTienda[key] || 0}
               totalTareas={totalTareas}
               onSeleccionar={setProductoSeleccionado}
+              vistaUnica={columnasACargar.length === 1}
             />
           ))}
         </div>

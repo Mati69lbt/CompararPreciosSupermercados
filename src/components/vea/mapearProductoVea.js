@@ -1,6 +1,7 @@
 // src/utils/mappers/mapearProductoVea.js
 
 import { extraerDatosPapel } from '../../utils/extraerDatosPapel';
+import { obtenerPromocionesVea, SELLER_VEA_DEFAULT } from './segundaPrueba';
 
 const extraerContenidoDeTexto = (texto = '') => {
   if (!texto) return '';
@@ -198,18 +199,101 @@ const isProductAvailable = (item) => {
   return offer?.IsAvailable === true && (offer?.AvailableQuantity ?? 0) > 0;
 };
 
-export const mapearProductoVea = (dataOriginal = []) => {
+// Consulta masiva de promociones VTEX para evitar el N+1 (una petición por SKU).
+// Solo se acepta el descuento si la promo es válida y estrictamente porcentual
+// (categoryType/discountType === "percentual"); cualquier otro caso -> 0.
+// Devuelve un Map itemId -> effectiveDiscount (0 si no hay promo válida).
+// src/utils/mappers/mapearProductoVea.js
+
+// Consulta masiva de promociones VTEX filtrando ofertas porcentuales individuales únicamente.
+const consultarDescuentosMasivos = async (skus, seller) => {
+  const descuentosPorSku = new Map();
+  if (!skus.length) return descuentosPorSku;
+
+  const promociones = await obtenerPromocionesVea(skus, seller);
+
+  skus.forEach((sku) => {
+    const promo = promociones?.[sku];
+
+    // 1. Si no hay promo o el objeto viene vacío, se descarta
+    if (!promo || Object.keys(promo).length === 0) {
+      descuentosPorSku.set(sku, 0);
+      return;
+    }
+
+    const { code, effectiveDiscount, nominalDiscount } = promo;
+
+    // 2. Oferta porcentual: aceptamos el descuento si viene effectiveDiscount/nominalDiscount
+    // numérico, sin exigir que "code" termine en "%" (el formato de code varía según la promo).
+    const discountRaw = effectiveDiscount ?? nominalDiscount ?? code;
+    const descuento = parseFloat(discountRaw);
+
+    descuentosPorSku.set(sku, !Number.isNaN(descuento) && descuento > 0 ? descuento : 0);
+  });
+
+  return descuentosPorSku;
+};
+
+export const mapearProductoVea = async (dataOriginal = []) => {
   if (!Array.isArray(dataOriginal)) return [];
 
-  return dataOriginal
-    .filter(isProductAvailable)
+  const disponibles = dataOriginal.filter(isProductAvailable);
+
+  const skus = Array.from(
+    new Set(disponibles.map((item) => item.items?.[0]?.itemId).filter(Boolean)),
+  );
+  // El endpoint de promociones toma un único "seller" por request; se usa el
+  // primero disponible en el catálogo (todos los ítems son de la misma sucursal).
+  const seller =
+    disponibles
+      .map((item) => item.items?.[0]?.sellers?.[0]?.sellerId)
+      .find(Boolean) || SELLER_VEA_DEFAULT;
+  const descuentosPorSku = await consultarDescuentosMasivos(skus, seller);
+
+  return disponibles
     .map((item) => {
       const id = item.productId || item.items?.[0]?.itemId || Math.random().toString(36).substr(2, 9);
       const nombre = item.productName || item.productTitle || item.items?.[0]?.nameComplete || 'Producto sin nombre';
       const marca = (item.brand || 'Sin marca').toString().toUpperCase().trim();
 
       const seller = item.items?.[0]?.sellers?.[0]?.commertialOffer;
-      const precioFinal = seller?.Price || seller?.ListPrice || 0;
+      const itemId = item.items?.[0]?.itemId;
+
+      // --- Lógica de precios (regla única, de punta a punta) ---
+      // Price = precio de venta del catálogo (ya puede traer descuento de tabla de precios).
+      // ListPrice = precio de lista/regular original (sin rebaja).
+      const precioCatalogo = seller?.Price || 0;
+      const listPriceCatalogo = seller?.ListPrice || precioCatalogo;
+
+      // Descuento externo (API de promociones), porcentual, aplicado sobre el precio de catálogo.
+      const porcentajeDescuento = descuentosPorSku.get(itemId) || 0;
+
+      // precio = precio FINAL con el descuento ya aplicado (si lo hay).
+      const precio = porcentajeDescuento > 0
+        ? Math.round(precioCatalogo * (1 - porcentajeDescuento))
+        : precioCatalogo;
+
+      // listPrice = precio regular. Se ancla al precio de catálogo (no al final ya rebajado)
+      // para no recortar el precio de lista real cuando listPriceCatalogo < precioCatalogo.
+      const listPrice = Math.max(listPriceCatalogo, precioCatalogo);
+
+      // Auditoría: si se detectó un % de descuento pero el precio final no quedó
+      // por debajo del precio de lista, algo en el cálculo o en los datos de origen falló.
+      if (porcentajeDescuento > 0 && precio >= listPrice) {
+        console.warn(
+          '⚠️ [Vea] Descuento detectado pero precio final no quedó por debajo de listPrice',
+          {
+            itemId,
+            nombre: item.productName || item.items?.[0]?.nameComplete,
+            porcentajeDescuento,
+            precioCatalogo,
+            listPriceCatalogo,
+            precioCalculado: precio,
+            listPriceCalculado: listPrice,
+          },
+        );
+      }
+
       const imagenProducto = item.items?.[0]?.images?.[0]?.imageUrl || '';
 
       // FAMILIA DE VERDAD (Regla inquebrantable): el código VTEX de "Gramaje de unidad de medida"
@@ -256,22 +340,23 @@ export const mapearProductoVea = (dataOriginal = []) => {
       let promocion = null;
       if (seller?.Teasers && seller.Teasers.length > 0) {
         promocion = seller.Teasers[0]['<Name>k__BackingField'] || 'Oferta disponible';
-      } else if (seller?.Price < seller?.ListPrice) {
+      } else if (porcentajeDescuento > 0) {
         promocion = 'En oferta';
       }
 
-      const datosPapel = extraerDatosPapel(nombre, precioFinal, 'vea');
+      // El precio por unidad SIEMPRE se calcula sobre el precio final (con descuento aplicado).
+      const datosPapel = extraerDatosPapel(nombre, precio, 'vea');
 
       return {
         id: `vea-${id}`,
         tienda: 'vea',
         nombre,
-        precio: Number(precioFinal),
-        listPrice: Number(seller?.ListPrice || precioFinal),
+        precio: Number(precio),
+        listPrice: Number(listPrice),
         marca,
         categoria: item.categories?.[0]?.split('/')[1] || 'General',
         contenido: datosPapel?.contenido || contenido || 'Sin especificar', // Si no tiene medida en el título, pasa a ser "Sin especificar"
-        precioPorUnidad: datosPapel?.precioPorUnidad || calcularPrecioPorUnidad(precioFinal, contenido || 'Sin especificar'),
+        precioPorUnidad: datosPapel?.precioPorUnidad || calcularPrecioPorUnidad(precio, contenido || 'Sin especificar'),
         promocion,
         imagenProducto,
         linkCompra: item.link || 'https://www.vea.com.ar',

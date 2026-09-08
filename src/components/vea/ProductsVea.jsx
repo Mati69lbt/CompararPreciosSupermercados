@@ -8,8 +8,11 @@ import { ordenarPorPrecioRelativo } from "../../utils/precioPorUnidad";
 
 const PRODUCTOS_POR_PAGINA = 50;
 
-const TarjetaProducto = ({ prod, onSeleccionar }) => {
-  const { claseBorde, onMouseEnter, onMouseLeave } = useEstiloTarjeta("vea", prod.id);
+const TarjetaProducto = ({ prod, onSeleccionar, vistaUnica }) => {
+  const { claseBorde, onMouseEnter, onMouseLeave } = useEstiloTarjeta(
+    "vea",
+    prod.id,
+  );
   const tieneDescuento = prod.listPrice > prod.precio;
   const descuento = tieneDescuento
     ? Math.round((1 - prod.precio / prod.listPrice) * 100)
@@ -20,7 +23,7 @@ const TarjetaProducto = ({ prod, onSeleccionar }) => {
       onClick={() => onSeleccionar(prod)}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
-      className={`w-[220px] sm:w-[240px] shrink-0 snap-start lg:w-auto lg:shrink lg:snap-align-none bg-slate-800 rounded-lg p-2.5 sm:p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
+      className={`${vistaUnica ? "w-full max-w-[240px]" : "w-[220px] sm:w-[240px] shrink-0 snap-start lg:w-auto lg:shrink lg:snap-align-none"} bg-slate-800 rounded-lg p-2.5 sm:p-2 flex flex-col justify-between shadow transition-all overflow-hidden cursor-pointer hover:scale-[1.01] ${claseBorde}`}
     >
       <div>
         <div className="h-24 sm:h-26 w-full shrink-0 bg-white/5 rounded-md flex items-center justify-center overflow-hidden mb-1.5">
@@ -55,6 +58,15 @@ const TarjetaProducto = ({ prod, onSeleccionar }) => {
         >
           {prod.nombre}
         </h3>
+
+        {prod.promocion && (
+          <span
+            title={prod.promocion}
+            className="inline-block mt-1 max-w-full truncate bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-semibold px-1.5 py-0.5 rounded-md"
+          >
+            🏷️ {prod.promocion}
+          </span>
+        )}
       </div>
 
       <div>
@@ -63,9 +75,11 @@ const TarjetaProducto = ({ prod, onSeleccionar }) => {
           <span className="text-slate-400 font-medium truncate text-[11px]">
             {prod.precioPorUnidad || ""}
           </span>
-          <span className="text-slate-400 font-normal text-[11px] px-1 whitespace-nowrap">
-            ${(prod.listPrice ?? prod.precio).toLocaleString("es-AR")}
-          </span>
+          {tieneDescuento && (
+            <span className="text-slate-500 font-normal text-[11px] px-1 whitespace-nowrap line-through">
+              ${prod.listPrice.toLocaleString("es-AR")}
+            </span>
+          )}
           <span className="text-emerald-400 font-bold text-xs sm:text-sm whitespace-nowrap">
             ${prod.precio.toLocaleString("es-AR")}
           </span>
@@ -81,6 +95,7 @@ const ProductsVea = ({
   filtroMarca = "",
   onCount,
   onProducts,
+  vistaUnica = false,
 }) => {
   const [productos, setProductos] = useState([]);
   const [cargando, setCargando] = useState(false);
@@ -104,10 +119,12 @@ const ProductsVea = ({
       const todosRaw = resultados.flat();
 
       if (Array.isArray(todosRaw) && todosRaw.length > 0) {
-        const productosLimpios = mapearProductoVea(todosRaw).map((p) => ({
-          ...p,
-          logoTienda: SUPERMARKET_LOGOS.vea,
-        }));
+        const productosLimpios = (await mapearProductoVea(todosRaw)).map(
+          (p) => ({
+            ...p,
+            logoTienda: SUPERMARKET_LOGOS.vea,
+          }),
+        );
 
         // La carga en paralelo de páginas puede traer el mismo producto repetido; deduplicamos por id
         const productosUnicos = Array.from(
@@ -138,18 +155,20 @@ const ProductsVea = ({
     onProducts?.(productos);
   }, [productos, onProducts]);
 
-  // Filtrado por Marca/Rango de Medida + ORDENAMIENTO DE MENOR A MAYOR PRECIO
+  // Filtrado por Marca/Rango de Medida, solo productos con descuento real
+  // + ORDENAMIENTO DE MENOR A MAYOR PRECIO
   const productosFiltrados = useMemo(() => {
-    const filtrados = productos
-      .filter((p) => {
-        const coincideMarca = filtroMarca
-          ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim()
-          : true;
-        const coincideContenido = filtroContenido
-          ? obtenerRangoContenido(p.contenido) === filtroContenido
-          : true;
-        return coincideMarca && coincideContenido;
-      });
+    const filtrados = productos.filter((p) => {
+      const coincideMarca = filtroMarca
+        ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim()
+        : true;
+      const coincideContenido = filtroContenido
+        ? obtenerRangoContenido(p.contenido) === filtroContenido
+        : true;
+
+      // SIMPLEMENTE RETORNAR LA COINCIDENCIA DE FILTROS (Sin exigir tieneDescuento)
+      return coincideMarca && coincideContenido;
+    });
     return ordenarPorPrecioRelativo(filtrados);
   }, [productos, filtroMarca, filtroContenido]);
 
@@ -158,17 +177,26 @@ const ProductsVea = ({
   }, [productosFiltrados, onCount]);
 
   return (
-    <div className="bg-slate-900 text-white flex flex-col">
+    <div
+      className={`bg-slate-900 text-white flex flex-col ${vistaUnica ? "max-w-7xl mx-auto w-full px-2 sm:px-4" : ""}`}
+    >
       <div className="p-2">
         {cargando ? (
           <p className="text-center text-slate-400 text-xs py-4">Cargando...</p>
         ) : (
-          <div className="flex flex-row gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-1 lg:flex-col lg:overflow-visible lg:snap-none lg:pb-0">
+          <div
+            className={
+              vistaUnica
+                ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4 justify-items-center"
+                : "flex flex-row gap-2 overflow-x-auto snap-x snap-mandatory scrollbar-none pb-1 lg:flex-col lg:overflow-visible lg:snap-none lg:pb-0"
+            }
+          >
             {productosFiltrados.map((prod) => (
               <TarjetaProducto
                 key={prod.id}
                 prod={prod}
                 onSeleccionar={setProductoSeleccionado}
+                vistaUnica={vistaUnica}
               />
             ))}
           </div>
@@ -209,15 +237,16 @@ const ProductsVea = ({
             <div>
               <span className="block text-[10px] text-slate-400 uppercase tracking-wider font-semibold truncate">
                 {productoSeleccionado.marca}
-                {productoSeleccionado.contenido && productoSeleccionado.contenido !== "Sin especificar" && (
-                  <>
-                    <br className="block sm:hidden" />
-                    <span className="hidden sm:inline"> - </span>
-                    <span className="text-slate-400 font-bold">
-                      {productoSeleccionado.contenido}
-                    </span>
-                  </>
-                )}
+                {productoSeleccionado.contenido &&
+                  productoSeleccionado.contenido !== "Sin especificar" && (
+                    <>
+                      <br className="block sm:hidden" />
+                      <span className="hidden sm:inline"> - </span>
+                      <span className="text-slate-400 font-bold">
+                        {productoSeleccionado.contenido}
+                      </span>
+                    </>
+                  )}
               </span>
 
               <div className="flex flex-wrap items-center gap-2">
