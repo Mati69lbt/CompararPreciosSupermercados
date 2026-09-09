@@ -1,7 +1,12 @@
 // src/utils/mappers/mapearProductoVea.js
-
+// cspell: ignore jumboargentinav NUMERICAS Peticion Reemplazá Skus matchea matcheando parsear reintenta skus Unicos acum busqueda commertial deduplicamos promocion CODIGO Codigo Parsea categoria codigo descripcion itro matcheado percentual
 import { extraerDatosPapel } from '../../utils/extraerDatosPapel';
-import { obtenerPromocionesVea, SELLER_VEA_DEFAULT } from './segundaPrueba';
+import {
+  obtenerPromocionesVea,
+  obtenerDescuentoParaSku,
+  extraerDescuentoPorcentual,
+  SELLER_VEA_DEFAULT,
+} from './segundaPrueba';
 
 const extraerContenidoDeTexto = (texto = '') => {
   if (!texto) return '';
@@ -27,8 +32,6 @@ const extraerContenidoDeTexto = (texto = '') => {
   }
 
   // 2. Si no es peso/volumen, tomamos el primer número suelto del título
-  // como cantidad de unidades del pack (ej: "Jabón x8" -> 8, "Yogur 4" -> 4).
-  // Si no hay ningún número, se considera 1 unidad.
   const matchNumero = texto.match(/\d+/);
   if (matchNumero) {
     const cantidad = parseInt(matchNumero[0], 10);
@@ -40,7 +43,6 @@ const extraerContenidoDeTexto = (texto = '') => {
   return '1 UNID';
 };
 
-// Familia a la que pertenece cada unidad normalizada, para detectar contaminación GR/KG vs L/ML
 const FAMILIA_UNIDAD = {
   L: 'volumen',
   ML: 'volumen',
@@ -55,7 +57,6 @@ const obtenerFamiliaDesdeContenido = (contenido) => {
   return FAMILIA_UNIDAD[unidad] || null;
 };
 
-// Detecta la familia (peso/volumen) declarada en los metadatos de gramaje de VTEX
 const obtenerFamiliaDesdeMetadato = (texto = '') => {
   if (!texto) return null;
   const t = texto.toLowerCase();
@@ -64,7 +65,6 @@ const obtenerFamiliaDesdeMetadato = (texto = '') => {
   return null;
 };
 
-// Familia declarada por el código VTEX de "Gramaje de unidad de medida" (fuente más confiable)
 const FAMILIA_CODIGO_VTEX = {
   GRM: 'peso',
   GR: 'peso',
@@ -82,10 +82,8 @@ const obtenerFamiliaDesdeCodigoMedida = (codigo = '') => {
   return FAMILIA_CODIGO_VTEX[codigo.toUpperCase()] || null;
 };
 
-// Devuelve el primer elemento si es array, o el valor tal cual si ya es escalar
 const primero = (valor) => (Array.isArray(valor) ? valor[0] ?? null : valor ?? null);
 
-// Códigos de unidad de medida VTEX (Gramaje de unidad de medida) a nuestra notación
 const UNIDAD_MEDIDA_VTEX = {
   GRM: 'GR',
   GR: 'GR',
@@ -98,10 +96,6 @@ const UNIDAD_MEDIDA_VTEX = {
   UNI: 'UNID',
 };
 
-
-
-// Construye el contenido directamente desde "Gramaje de unidad de consumo" +
-// "Gramaje de unidad de medida" (ej: '160.00' + 'GRM' -> '160 GR').
 const obtenerContenidoDesdeGramaje = (item) => {
   const cantidadRaw = primero(item['Gramaje de unidad de consumo']);
   const unidadRaw = primero(item['Gramaje de unidad de medida']);
@@ -128,8 +122,6 @@ const obtenerContenidoDesdeGramaje = (item) => {
   return `${cantidadFormateada} ${unidad}`;
 };
 
-// Parsea directamente el texto de la leyenda de conversión VTEX ("1 K." / "1 L."),
-// que usa abreviaturas ("K" sin "g") que extraerContenidoDeTexto no reconoce
 const parsearLeyendaConversion = (leyenda = '') => {
   if (!leyenda) return null;
   const match = leyenda.match(/(\d+(?:[.,]\d+)?)\s*(kgs?|kilos?|k|lts?|litros?|l)\.?/i);
@@ -155,8 +147,6 @@ const formatearPrecio = (valor) =>
     maximumFractionDigits: 0,
   });
 
-// Calcula el precio por kilo/litro a partir del precio final y del "contenido"
-// ya extraído (ej: "1.5 L", "500 ML", "40 GR")
 const calcularPrecioPorUnidad = (precioFinal, contenido) => {
   const precio = Number(precioFinal);
   if (!precio || precio <= 0) return null;
@@ -193,45 +183,44 @@ const calcularPrecioPorUnidad = (precioFinal, contenido) => {
   return `${formatearPrecio(precioPorUnidad)} x 1 ${unidadFinal}`;
 };
 
-// Descarta ítems sin stock real antes de mapear (IsAvailable=true y AvailableQuantity>0)
+const extraerDescuentoDeCatalogo = (offer) => {
+  if (!offer) return 0;
+
+  if (Array.isArray(offer.Teasers)) {
+    for (const teaser of offer.Teasers) {
+      const porcentaje = extraerDescuentoPorcentual(teaser);
+      if (porcentaje) return porcentaje;
+    }
+  }
+
+  if (Array.isArray(offer.DiscountHighLight)) {
+    for (const highlight of offer.DiscountHighLight) {
+      const porcentaje = extraerDescuentoPorcentual(highlight);
+      if (porcentaje) return porcentaje;
+    }
+  }
+
+  return 0;
+};
+
 const isProductAvailable = (item) => {
   const offer = item?.items?.[0]?.sellers?.[0]?.commertialOffer;
   return offer?.IsAvailable === true && (offer?.AvailableQuantity ?? 0) > 0;
 };
 
-// Consulta masiva de promociones VTEX para evitar el N+1 (una petición por SKU).
-// Solo se acepta el descuento si la promo es válida y estrictamente porcentual
-// (categoryType/discountType === "percentual"); cualquier otro caso -> 0.
-// Devuelve un Map itemId -> effectiveDiscount (0 si no hay promo válida).
-// src/utils/mappers/mapearProductoVea.js
-
-// Consulta masiva de promociones VTEX filtrando ofertas porcentuales individuales únicamente.
 const consultarDescuentosMasivos = async (skus, seller) => {
-  const descuentosPorSku = new Map();
-  if (!skus.length) return descuentosPorSku;
+  const infoPromosPorSku = new Map();
 
-  const promociones = await obtenerPromocionesVea(skus, seller);
+  if (!skus.length) return infoPromosPorSku;
+
+  const promocionesRaw = await obtenerPromocionesVea(skus, seller);
 
   skus.forEach((sku) => {
-    const promo = promociones?.[sku];
-
-    // 1. Si no hay promo o el objeto viene vacío, se descarta
-    if (!promo || Object.keys(promo).length === 0) {
-      descuentosPorSku.set(sku, 0);
-      return;
-    }
-
-    const { code, effectiveDiscount, nominalDiscount } = promo;
-
-    // 2. Oferta porcentual: aceptamos el descuento si viene effectiveDiscount/nominalDiscount
-    // numérico, sin exigir que "code" termine en "%" (el formato de code varía según la promo).
-    const discountRaw = effectiveDiscount ?? nominalDiscount ?? code;
-    const descuento = parseFloat(discountRaw);
-
-    descuentosPorSku.set(sku, !Number.isNaN(descuento) && descuento > 0 ? descuento : 0);
+    const infoPromo = obtenerDescuentoParaSku(promocionesRaw, sku);
+    infoPromosPorSku.set(sku, infoPromo);
   });
 
-  return descuentosPorSku;
+  return infoPromosPorSku;
 };
 
 export const mapearProductoVea = async (dataOriginal = []) => {
@@ -240,15 +229,15 @@ export const mapearProductoVea = async (dataOriginal = []) => {
   const disponibles = dataOriginal.filter(isProductAvailable);
 
   const skus = Array.from(
-    new Set(disponibles.map((item) => item.items?.[0]?.itemId).filter(Boolean)),
+    new Set(
+      disponibles.map((item) => item.items?.[0]?.itemId).filter(Boolean),
+    ),
   );
-  // El endpoint de promociones toma un único "seller" por request; se usa el
-  // primero disponible en el catálogo (todos los ítems son de la misma sucursal).
-  const seller =
-    disponibles
-      .map((item) => item.items?.[0]?.sellers?.[0]?.sellerId)
-      .find(Boolean) || SELLER_VEA_DEFAULT;
+
+  const seller = SELLER_VEA_DEFAULT;
   const descuentosPorSku = await consultarDescuentosMasivos(skus, seller);
+
+
 
   return disponibles
     .map((item) => {
@@ -256,48 +245,32 @@ export const mapearProductoVea = async (dataOriginal = []) => {
       const nombre = item.productName || item.productTitle || item.items?.[0]?.nameComplete || 'Producto sin nombre';
       const marca = (item.brand || 'Sin marca').toString().toUpperCase().trim();
 
-      const seller = item.items?.[0]?.sellers?.[0]?.commertialOffer;
+      const sellerOffer = item.items?.[0]?.sellers?.[0]?.commertialOffer;
       const itemId = item.items?.[0]?.itemId;
 
-      // --- Lógica de precios (regla única, de punta a punta) ---
-      // Price = precio de venta del catálogo (ya puede traer descuento de tabla de precios).
-      // ListPrice = precio de lista/regular original (sin rebaja).
-      const precioCatalogo = seller?.Price || 0;
-      const listPriceCatalogo = seller?.ListPrice || precioCatalogo;
+      const precioCatalogo = sellerOffer?.Price || 0;
 
-      // Descuento externo (API de promociones), porcentual, aplicado sobre el precio de catálogo.
-      const porcentajeDescuento = descuentosPorSku.get(itemId) || 0;
+      // EXTRAER INFO COMPLETA DEL MAP ({ porcentaje, textoPromo })
+      const infoPromo = descuentosPorSku.get(itemId) || { porcentaje: 0, textoPromo: null };
+      let porcentajeDescuento = infoPromo.porcentaje || 0;
+      let textoPromocionAPI = infoPromo.textoPromo || null;
 
-      // precio = precio FINAL con el descuento ya aplicado (si lo hay).
+      // Fallback si no hay promo por API externa
+      if (porcentajeDescuento === 0 && !textoPromocionAPI) {
+        porcentajeDescuento = extraerDescuentoDeCatalogo(sellerOffer);
+      }
+
       const precio = porcentajeDescuento > 0
-        ? Math.round(precioCatalogo * (1 - porcentajeDescuento))
+        ? Math.round(precioCatalogo * (1 - porcentajeDescuento / 100))
         : precioCatalogo;
 
-      // listPrice = precio regular. Se ancla al precio de catálogo (no al final ya rebajado)
-      // para no recortar el precio de lista real cuando listPriceCatalogo < precioCatalogo.
-      const listPrice = Math.max(listPriceCatalogo, precioCatalogo);
+      const listPrice = precioCatalogo;
+      const descuentoPercent = porcentajeDescuento > 0 ? porcentajeDescuento : 0;
 
-      // Auditoría: si se detectó un % de descuento pero el precio final no quedó
-      // por debajo del precio de lista, algo en el cálculo o en los datos de origen falló.
-      if (porcentajeDescuento > 0 && precio >= listPrice) {
-        console.warn(
-          '⚠️ [Vea] Descuento detectado pero precio final no quedó por debajo de listPrice',
-          {
-            itemId,
-            nombre: item.productName || item.items?.[0]?.nameComplete,
-            porcentajeDescuento,
-            precioCatalogo,
-            listPriceCatalogo,
-            precioCalculado: precio,
-            listPriceCalculado: listPrice,
-          },
-        );
-      }
+    
 
       const imagenProducto = item.items?.[0]?.images?.[0]?.imageUrl || '';
 
-      // FAMILIA DE VERDAD (Regla inquebrantable): el código VTEX de "Gramaje de unidad de medida"
-      // (GRM/GR/KGM/KG -> peso, CM3/MLT/LTR/LT -> volumen) manda por sobre cualquier otra fuente.
       const codigoUnidadMedida = primero(item['Gramaje de unidad de medida']);
       const leyendaConversion = item['Gramaje leyenda de conversión']?.[0];
       const descripcionMedida = item['Gramaje descripción de medida']?.[0];
@@ -306,11 +279,8 @@ export const mapearProductoVea = async (dataOriginal = []) => {
         obtenerFamiliaDesdeMetadato(leyendaConversion) ||
         obtenerFamiliaDesdeMetadato(descripcionMedida);
 
-      // EXTRAER ÚNICAMENTE DEL NOMBRE
       let contenido = extraerContenidoDeTexto(nombre);
 
-      // FILTRO ESTRICTO: si la familia extraída del título contradice la familia de metadatos,
-      // se descarta por completo la extracción del título (nunca se mezclan GR/KG con L/ML).
       if (contenido && familiaMeta) {
         const familiaRegex = obtenerFamiliaDesdeContenido(contenido);
         if (familiaRegex && familiaRegex !== familiaMeta) {
@@ -318,18 +288,14 @@ export const mapearProductoVea = async (dataOriginal = []) => {
         }
       }
 
-      // SEGUNDA FUENTE: dato numérico exacto de VTEX (Gramaje de unidad de consumo/medida)
       if (!contenido) {
         contenido = obtenerContenidoDesdeGramaje(item) || '';
       }
 
-      // ÚLTIMA FUENTE DE VERDAD: la leyenda de conversión declarada por VTEX ("1 K." / "1 L.")
       if (!contenido && leyendaConversion) {
         contenido = parsearLeyendaConversion(leyendaConversion) || '';
       }
 
-      // Blindaje final: si a pesar de todo el contenido resultante contradice la familia
-      // declarada por metadatos, se descarta (queda "Sin especificar").
       if (contenido && familiaMeta) {
         const familiaFinal = obtenerFamiliaDesdeContenido(contenido);
         if (familiaFinal && familiaFinal !== familiaMeta) {
@@ -337,30 +303,35 @@ export const mapearProductoVea = async (dataOriginal = []) => {
         }
       }
 
-      let promocion = null;
-      if (seller?.Teasers && seller.Teasers.length > 0) {
-        promocion = seller.Teasers[0]['<Name>k__BackingField'] || 'Oferta disponible';
-      } else if (porcentajeDescuento > 0) {
-        promocion = 'En oferta';
+      // ETIQUETA FINAL DE PROMOCIÓN (Combina API, Teasers y fallback porcentual)
+      let promocion = textoPromocionAPI;
+      if (!promocion) {
+        if (sellerOffer?.Teasers && sellerOffer.Teasers.length > 0) {
+          promocion = sellerOffer.Teasers[0]['<Name>k__BackingField'] || 'Oferta disponible';
+        } else if (descuentoPercent > 0) {
+          promocion = `${descuentoPercent}% OFF`;
+        }
       }
 
-      // El precio por unidad SIEMPRE se calcula sobre el precio final (con descuento aplicado).
       const datosPapel = extraerDatosPapel(nombre, precio, 'vea');
 
-      return {
+      const productoResultante = {
         id: `vea-${id}`,
         tienda: 'vea',
         nombre,
         precio: Number(precio),
         listPrice: Number(listPrice),
+        descuentoPercent,
         marca,
         categoria: item.categories?.[0]?.split('/')[1] || 'General',
-        contenido: datosPapel?.contenido || contenido || 'Sin especificar', // Si no tiene medida en el título, pasa a ser "Sin especificar"
+        contenido: datosPapel?.contenido || contenido || 'Sin especificar',
         precioPorUnidad: datosPapel?.precioPorUnidad || calcularPrecioPorUnidad(precio, contenido || 'Sin especificar'),
         promocion,
         imagenProducto,
         linkCompra: item.link || 'https://www.vea.com.ar',
       };
+
+      return productoResultante;
     })
     .filter((producto) => producto.precio > 500);
 };

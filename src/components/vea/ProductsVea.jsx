@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { SUPERMARKET_LOGOS } from "../../assets/logos/logos";
 import { mapearProductoVea } from "./mapearProductoVea";
 import { obtenerRangoContenido } from "../../utils/contenido";
 import { getApiUrl } from "../../utils/apiConfig";
 import { useEstiloTarjeta } from "../../context/ProductMatchContext";
 import { ordenarPorPrecioRelativo } from "../../utils/precioPorUnidad";
+
+//cspell: ignore jumboargentinav NUMERICAS Peticion Reemplazá Skus matchea matcheando parsear reintenta skus Unicos acum busqueda commertial deduplicamos promocion
 
 const PRODUCTOS_POR_PAGINA = 50;
 
@@ -99,32 +101,62 @@ const ProductsVea = ({
 }) => {
   const [productos, setProductos] = useState([]);
   const [cargando, setCargando] = useState(false);
+  const [progreso, setProgreso] = useState(0);
   const [productoSeleccionado, setProductoSeleccionado] = useState(null);
+  const busquedaEnCursoRef = useRef(null);
 
-  // Carga automática de las 4 primeras páginas (200 productos)
+  // Carga automática de las 2 primeras páginas (100 productos)
   const cargarPaginasIniciales = async (termino) => {
     setCargando(true);
+    setProgreso(0);
     try {
-      const paginasACargar = [0, 1, 2, 3];
-      const peticiones = paginasACargar.map((pageIndex) => {
+      const paginasACargar = [0, 1];
+      let peticionesCompletadas = 0;
+      const peticiones = paginasACargar.map(async (pageIndex) => {
         const from = pageIndex * PRODUCTOS_POR_PAGINA;
         const to = from + PRODUCTOS_POR_PAGINA - 1;
-        return fetch(getApiUrl("vea", `?ft=${termino}&_from=${from}&_to=${to}`))
-          .then((res) => res.json())
-          .catch(() => []);
+        try {
+          const res = await fetch(
+            getApiUrl("vea", `?ft=${termino}&_from=${from}&_to=${to}`),
+          );
+          return await res.json();
+        } catch {
+          return [];
+        } finally {
+          peticionesCompletadas += 1;
+          setProgreso(Math.round((peticionesCompletadas / paginasACargar.length) * 60));
+        }
       });
 
       const resultados = await Promise.all(peticiones);
 
       const todosRaw = resultados.flat();
 
+      todosRaw.sort((a, b) => {
+        const marcaA = (a.brand || "").toString();
+        const marcaB = (b.brand || "").toString();
+        return marcaA.localeCompare(marcaB, "es", { sensitivity: "base" });
+      });
+
+      console.table(
+        todosRaw.map((p) => ({
+          ID: p.productId,
+          Marca: p.brand,
+          Nombre: p.productName,
+          PrecioBase: p.items?.[0]?.sellers?.[0]?.commertialOffer?.Price,
+          itemId: p.items?.[0]?.itemId,
+        })),
+      );
+
       if (Array.isArray(todosRaw) && todosRaw.length > 0) {
+        setProgreso(70);
         const productosLimpios = (await mapearProductoVea(todosRaw)).map(
           (p) => ({
             ...p,
             logoTienda: SUPERMARKET_LOGOS.vea,
           }),
         );
+        setProgreso(90);
 
         // La carga en paralelo de páginas puede traer el mismo producto repetido; deduplicamos por id
         const productosUnicos = Array.from(
@@ -135,6 +167,7 @@ const ProductsVea = ({
       } else {
         setProductos([]);
       }
+      setProgreso(100);
     } catch (error) {
       console.error("❌ Error al procesar Vea:", error);
       setProductos([]);
@@ -145,8 +178,13 @@ const ProductsVea = ({
 
   useEffect(() => {
     if (busqueda) {
+      // Evita la doble ejecución del efecto (React StrictMode / remounts) para
+      // el mismo término de búsqueda, que disparaba la carga inicial por duplicado.
+      if (busquedaEnCursoRef.current === busqueda) return;
+      busquedaEnCursoRef.current = busqueda;
       cargarPaginasIniciales(busqueda);
     } else {
+      busquedaEnCursoRef.current = null;
       setProductos([]);
     }
   }, [busqueda]);
@@ -182,7 +220,36 @@ const ProductsVea = ({
     >
       <div className="p-2">
         {cargando ? (
-          <p className="text-center text-slate-400 text-xs py-4">Cargando...</p>
+          <div className="flex items-center justify-center py-8">
+            <div className="relative w-16 h-16">
+              <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="6"
+                  className="text-slate-800"
+                />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r="28"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  strokeDasharray={2 * Math.PI * 28}
+                  strokeDashoffset={2 * Math.PI * 28 * (1 - progreso / 100)}
+                  className="text-emerald-400 transition-all duration-300 ease-out"
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-amber-400">
+                {progreso}%
+              </span>
+            </div>
+          </div>
         ) : (
           <div
             className={

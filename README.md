@@ -2,9 +2,14 @@
 
 App en React (Vite + Tailwind v4) que busca un mismo producto en varios supermercados argentinos (Carrefour, Día, ChangoMás, Vea, Coto) y compara precios lado a lado en una grilla de 5 columnas, con filtros globales de marca y medida.
 
+Con `react-router-dom` tiene dos rutas:
+
+- `/` — buscador manual (`App.jsx`): el usuario tipea un término y se compara ese producto en las 5 tiendas.
+- `/ofertas` — relevamiento automático (`src/ofertas/page/ofertas.jsx`): recorre una canasta fija de términos (`src/ofertas/data/terminosCanasta.js`) contra las 5 tiendas, se queda solo con los productos en oferta (`precio < listPrice`) y calcula el % de descuento.
+
 > Documento para cliente (qué es y cómo funciona, sin jerga técnica): [`docs/guia-cliente.md`](docs/guia-cliente.md)
 
-Mercado Libre tiene integración propia (`src/components/mercadoLibre/`) pero no está montada en `App.jsx` actualmente.
+Mercado Libre tiene integración propia (`src/components/mercadoLibre/`) pero no está montada en ninguna de las dos rutas actualmente.
 
 ## Comandos
 
@@ -57,7 +62,23 @@ En dev, `src/utils/apiConfig.js` arma las URLs contra los proxies locales (`vite
 
 ### Extracción de contenido/medida
 
-Cada mapeador VTEX extrae el peso/volumen (ej. "1.5 L", "800 GR") parseando el nombre del producto con una regex compartida por convención (duplicada archivo por archivo, no extraída a un util común todavía). Detalle del parseo y de un bug conocido de falsos positivos en `docs/normalizacion-vtex.md`.
+Cada mapeador VTEX extrae el peso/volumen (ej. "1.5 L", "800 GR") parseando el nombre del producto con una regex compartida por convención (duplicada archivo por archivo, no extraída a un util común todavía), y lo canonicaliza como `"<numero> <UNIDAD>"` (GR/KG/ML/L/UNID). Detalle del parseo y de un bug conocido de falsos positivos en `docs/normalizacion-vtex.md`.
+
+Caso especial: papel higiénico / rollos de cocina se resuelve aparte en `src/utils/extraerDatosPapel.js`, con regex de cantidad de rollos y metraje propias por tienda (el título mezcla "x N unidades" con "N metros" en formatos distintos según el supermercado).
+
+### Coincidencia de productos entre tiendas (`src/utils/productMatch.js`)
+
+`construirInfoDeCoincidencias` agrupa productos de todas las tiendas que son "el mismo producto" (mismo EAN si está disponible, o mismo `marca + contenido equivalente + palabras clave del nombre` normalizadas) y marca cada uno como `unico` (sin equivalente en otra tienda), `ganador` (precio más bajo del grupo) o `compite`. `ProductMatchContext` expone esa info a los componentes de producto para resaltar visualmente ganadores/competidores.
+
+### Precio por unidad (`src/utils/precioPorUnidad.js`)
+
+`calcularPrecioPorUnidad` deriva precio por KG/L/unidad a partir de `precio` + `contenido`, y `ordenarPorPrecioRelativo` ordena una lista de productos por ese valor (usado en `/ofertas` para comparar packs de distinto tamaño).
+
+### Página de ofertas (`src/ofertas/`)
+
+- `page/ofertas.jsx` — dispara los fetches de la canasta de términos contra las 4 APIs VTEX + Coto, limitando concurrencia con `utils/ejecutarConLimite.js` (evita saturar los proxies de dev), filtra por descuento real y ordena/pagina el resultado.
+- `utils/persistenciaFiltros.js` — persiste filtros e historial de búsqueda en `localStorage` con TTL (3hs): entradas vencidas se descartan solas al leer.
+- `data/terminosCanasta.js` — lista de términos de la canasta básica que se recorre en cada relevamiento.
 
 ### Proxy de desarrollo (`vite.config.js`)
 

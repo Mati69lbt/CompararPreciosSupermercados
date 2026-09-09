@@ -37,8 +37,14 @@ const CONFIG_GENERICA = {
 };
 
 const regexRollosPrefijo = /(?:x|pack\s*x|paquete\s*x?)\s*(\d+)\b/i;
-const regexCombinado = /(\d+)\s*x\s*(\d+)\s*(?:m|mt|mts|metros)\b/i;
 const regexMetrosOM2 = /(\d+)\s*(?:m2|m²|mts?|metros?)\b/i;
+
+// "30 m x 6 u" / "30 mts x 6 rollos": metros por rollo primero, cantidad de rollos después.
+const regexMetrosXRollos =
+  /(\d+)\s*(?:m|mts?|metros)\b\s*x\s*(\d+)\s*(?:u|rll|rollos?)?\b/i;
+// "4 x 20" / "4 u x 20 m" / "4 rll x 20 mts": cantidad de rollos primero, metros por rollo después.
+const regexRollosXMetros =
+  /(\d+)\s*(?:u|rll|rollos?)?\s*x\s*(\d+)\s*(?:m|mts?|metros)?\b/i;
 
 const formatearMoneda = (valor) =>
   `$${valor.toLocaleString("es-AR", {
@@ -51,11 +57,22 @@ const formatearMoneda = (valor) =>
 // metraje por rollo (no la cantidad de rollos), y la cantidad de rollos hay
 // que buscarla entre los números "estándar" restantes del título.
 const detectarRollosYMetros = (titulo, config) => {
-  const combinado = titulo.match(regexCombinado);
-  if (combinado) {
+  // "30 m x 6 u": metros por rollo primero, rollos después.
+  const metrosXRollos = titulo.match(regexMetrosXRollos);
+  if (metrosXRollos) {
     return {
-      rollos: parseInt(combinado[1], 10),
-      metros: parseInt(combinado[2], 10),
+      rollos: parseInt(metrosXRollos[2], 10),
+      metros: parseInt(metrosXRollos[1], 10),
+      rollosEspecificados: true,
+    };
+  }
+
+  // "4 x 20" / "4 u x 20 m": rollos primero, metros por rollo después.
+  const rollosXMetros = titulo.match(regexRollosXMetros);
+  if (rollosXMetros) {
+    return {
+      rollos: parseInt(rollosXMetros[1], 10),
+      metros: parseInt(rollosXMetros[2], 10),
       rollosEspecificados: true,
     };
   }
@@ -127,17 +144,17 @@ export const extraerDatosPapel = (titulo = "", precioFinal = 0, tienda = "") => 
   const { rollos, metros, rollosEspecificados } = detectarRollosYMetros(titulo, config);
 
   const rollosFinal = rollos || 1;
-  const contenido = `${rollosFinal} UNID`;
+  const etiquetaRollo = tienda === "vea" ? "U" : "RLL";
 
   // Título sin unidades detectadas: no hay base para un precio relativo confiable.
   if (!rollosEspecificados) {
-    return { contenido, precioPorUnidad: "S/E" };
+    return { contenido: `${rollosFinal} UNID`, precioPorUnidad: "S/E" };
   }
 
   // Sin metraje en el título: precio por unidad/rollo.
   if (!metros) {
     return {
-      contenido,
+      contenido: `${rollosFinal} UNID`,
       precioPorUnidad: `${formatearMoneda(precio / rollosFinal)} x 1 UNID`,
     };
   }
@@ -145,7 +162,7 @@ export const extraerDatosPapel = (titulo = "", precioFinal = 0, tienda = "") => 
   // Con metraje: precio por metro (metraje total = rollos x metros por rollo).
   const metrosTotales = rollosFinal * metros;
   return {
-    contenido,
+    contenido: `${rollosFinal}${etiquetaRollo} x ${metros}MTS`,
     precioPorUnidad: `${formatearMoneda(precio / metrosTotales)} x 1 M`,
   };
 };
