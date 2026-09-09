@@ -335,15 +335,15 @@ export default obtenerPromocionesVea;
 
 
 
-// 📍 ACÁ ESTABA EL FETCH DE PRUEBA MANUAL
-fetch("/promos-vea/_v/search-promotions", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({
-    seller: "jumboargentinav700cordoba700",
-    skus: ["407873"] // 👈 SKU a probar individualmente
-  })
-})
-  .then(res => res.json())
-  .then(data => console.log("🔥 RESPUESTA EN CRUDO:", data))
-  .catch(err => console.error("Error:", err));
+// // 📍 ACÁ ESTABA EL FETCH DE PRUEBA MANUAL
+// fetch("/promos-vea/_v/search-promotions", {
+//   method: "POST",
+//   headers: { "Content-Type": "application/json" },
+//   body: JSON.stringify({
+//     seller: "jumboargentinav700cordoba700",
+//     skus: ["407873"] // 👈 SKU a probar individualmente
+//   })
+// })
+//   .then(res => res.json())
+//   .then(data => console.log("🔥 RESPUESTA EN CRUDO:", data))
+//   .catch(err => console.error("Error:", err));

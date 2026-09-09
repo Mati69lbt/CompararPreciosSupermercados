@@ -60,11 +60,7 @@ const buscarOfertasDeTermino = async (tienda, mapear, termino) => {
     const data = await res.json();
     if (!Array.isArray(data)) return [];
 
-    // if (tienda === "vea") {
-    //   console.log(`📦 JSON Crudo de VEA para [${termino}]:`, data);
-    // }
-
-    // Solo ítems con stock real (defensa adicional, independiente del filtro de cada mapeador)
+   
     const dataConStock = data.filter((item) => {
       const offer = item?.items?.[0]?.sellers?.[0]?.commertialOffer;
       return offer?.IsAvailable === true && (offer?.AvailableQuantity ?? 0) > 0;
