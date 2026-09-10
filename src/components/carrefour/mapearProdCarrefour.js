@@ -9,7 +9,7 @@ const extraerContenidoDelNombre = (nombre = "") => {
   // RegEx robusta para unidades comunes de supermercado.
   // La unidad solo matchea si va precedida de un número y no es parte de otra palabra
   // (evita falsos positivos como "leche"/"dulce" siendo interpretados como litros).
-  const regex = /(\d+(?:[.,]\d+)?)\s*(lts?|litros?|ml|cc|cm3|grs?|gramos?|kgs?|kilos?|u|unid|unidades?|\bgr\b|\bkg\b|\bml\b|\bl\b)(?!\w)/i;
+  const regex = /(\d+(?:[.,]\d+)?)\s*(lts?|litros?|ml|cc|cm3|grs?|gramos?|kgs?|kilos?|u|unid|unidades?|\bgr\b|\bkg\b|\bml\b|\bl\b|\bg\b)(?!\w)/i;
   const match = nombre.match(regex);
 
   if (!match) return null;

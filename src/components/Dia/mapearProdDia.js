@@ -41,6 +41,17 @@ const contarUnidadesDesdeTitulo = (texto = '') => {
   return null;
 };
 
+// Alternativa DIA: la mayoría de las veces el título nombra la unidad como "Ud" o "Ud.".
+// Toma el número inmediatamente anterior a esa palabra como cantidad.
+const extraerCantidadAntesDeUd = (texto = '') => {
+  if (!texto) return null;
+  const match = texto.match(/(\d+)\s*ud\.?\b/i);
+  if (match && parseInt(match[1], 10) > 0) {
+    return `${match[1]} UNID`;
+  }
+  return null;
+};
+
 // Descarta "1 UD" / "1 UN" / "1 UNID": no es una cantidad real, es el envase entero
 const esContenidoUnitarioInvalido = (contenido) =>
   !!contenido && /^1\s*(ud|un|unid)\.?$/i.test(contenido.trim());
@@ -115,17 +126,27 @@ export const mapearProductoDia = (dataOriginal = []) => {
 
       let contenido = null;
 
-      // PRIORIDAD 1 (obligatoria): si es un producto por unidad, calcular por división.
+      // PRIORIDAD 1: si el título trae la cantidad explícita (ej: "X 6 Ud.", "x 20 Ud"),
+      // esa es la fuente de verdad. La división precio/precioPorUnd puede fallar con descuentos.
       if (esUnidadTipoUnidad) {
+        contenido = contarUnidadesDesdeTitulo(nombre) || extraerCantidadAntesDeUd(nombre) || null;
+      }
+
+      // PRIORIDAD 2: si no hay cantidad explícita en el título, calcular por división.
+      if (esUnidadTipoUnidad && !contenido) {
         contenido = calcularUnidadesExactas(precioFinal, precioPorUnd);
       }
 
-      // PRIORIDAD 2: extraer la cantidad real desde el título comercial
+      // PRIORIDAD 3: extraer la cantidad real desde el título comercial (otros formatos)
       if (!contenido) {
-        contenido = contarUnidadesDesdeTitulo(nombre) || extraerContenidoDeTexto(nombre) || null;
+        contenido =
+          contarUnidadesDesdeTitulo(nombre) ||
+          extraerCantidadAntesDeUd(nombre) ||
+          extraerContenidoDeTexto(nombre) ||
+          null;
       }
 
-      // PRIORIDAD 3: recién si todo lo anterior falló, usar los metadatos globales
+      // PRIORIDAD 4: recién si todo lo anterior falló, usar los metadatos globales
       if (!contenido) {
         const contenidoBruto =
           item['UnidaddeMedida']?.[0] ||

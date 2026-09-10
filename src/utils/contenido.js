@@ -8,6 +8,10 @@ export const RANGOS_CONTENIDO = [
   "200 a 500 ML",
   "500 ML a 1 L",
   "1 L",
+  "1,5 L",
+  "2 L",
+  "2.25 L",
+  "3 L",
   "Más de 1 L",
   "Menos de 10 un",
   "10 a 20 un",
@@ -55,5 +59,9 @@ export const obtenerRangoContenido = (contenido) => {
   if (equivalente < 500) return "200 a 500 ML";
   if (equivalente < 1000) return "500 ML a 1 L";
   if (equivalente === 1000) return "1 L";
+  if (equivalente === 1500) return "1,5 L";
+  if (equivalente === 2000) return "2 L";
+  if (equivalente === 2250) return "2.25 L";
+  if (equivalente === 3000) return "3 L";
   return "Más de 1 L";
 };
