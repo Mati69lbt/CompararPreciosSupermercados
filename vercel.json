@@ -1,0 +1,13 @@
+
+{
+  "rewrites": [
+    {
+      "source": "/promos-vea/:path*",
+      "destination": "https://www.vea.com.ar/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
