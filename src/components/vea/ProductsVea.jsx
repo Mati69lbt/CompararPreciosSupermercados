@@ -60,15 +60,6 @@ const TarjetaProducto = ({ prod, onSeleccionar, vistaUnica }) => {
         >
           {prod.nombre}
         </h3>
-
-        {prod.promocion && (
-          <span
-            title={prod.promocion}
-            className="inline-block mt-1 max-w-full truncate bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-semibold px-1.5 py-0.5 rounded-md"
-          >
-            🏷️ {prod.promocion}
-          </span>
-        )}
       </div>
 
       <div>

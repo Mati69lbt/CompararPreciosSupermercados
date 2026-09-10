@@ -303,14 +303,10 @@ export const mapearProductoVea = async (dataOriginal = []) => {
         }
       }
 
-      // ETIQUETA FINAL DE PROMOCIÓN (Combina API, Teasers y fallback porcentual)
+      // ETIQUETA FINAL DE PROMOCIÓN (Combina API y Teasers; el % ya se muestra en la insignia superior)
       let promocion = textoPromocionAPI;
-      if (!promocion) {
-        if (sellerOffer?.Teasers && sellerOffer.Teasers.length > 0) {
-          promocion = sellerOffer.Teasers[0]['<Name>k__BackingField'] || 'Oferta disponible';
-        } else if (descuentoPercent > 0) {
-          promocion = `${descuentoPercent}% OFF`;
-        }
+      if (!promocion && sellerOffer?.Teasers && sellerOffer.Teasers.length > 0) {
+        promocion = sellerOffer.Teasers[0]['<Name>k__BackingField'] || 'Oferta disponible';
       }
 
       const datosPapel = extraerDatosPapel(nombre, precio, 'vea');
