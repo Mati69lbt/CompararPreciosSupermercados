@@ -6,6 +6,8 @@ import { getApiUrl } from "../../utils/apiConfig";
 import { useEstiloTarjeta } from "../../context/ProductMatchContext";
 import { ordenarPorPrecioRelativo } from "../../utils/precioPorUnidad";
 
+//Cspell: ignore changomas chango mas masonline busqueda productosUnicos promocion acum
+
 const PRODUCTOS_POR_PAGINA = 50;
 
 const TarjetaProducto = ({ prod, onSeleccionar, vistaUnica }) => {
@@ -109,6 +111,27 @@ const ProductsChangoMas = ({
 
       const todosRaw = resultados.flat();
 
+      todosRaw.sort((a, b) => {
+        const marcaA = (a.brand || "").toString();
+        const marcaB = (b.brand || "").toString();
+        return marcaA.localeCompare(marcaB, "es", { sensitivity: "base" });
+      });
+
+      console.table(
+        todosRaw.map((p) => ({
+          Marca: p.brand,
+          Nombre: p.productName,
+          PrecioBase: p.items?.[0]?.sellers?.[0]?.commertialOffer?.Price,
+          gramajeUnidadDemedida: p["Gramaje de unidad de medida"]?.[0] || "",
+          gramajeFactorConversion: p["Gramaje factor de conversión"]?.[0] || "",
+          ListPrice: p.items?.[0]?.sellers?.[0]?.commertialOffer?.ListPrice,
+          diferencia: (
+            p.items?.[0]?.sellers?.[0]?.commertialOffer?.Price -
+            p.items?.[0]?.sellers?.[0]?.commertialOffer?.ListPrice
+          ).toLocaleString("es-AR"),
+        })),
+      );
+
       if (Array.isArray(todosRaw) && todosRaw.length > 0) {
         const productosLimpios = mapearProductoChangoMas(todosRaw).map((p) => ({
           ...p,
@@ -146,16 +169,15 @@ const ProductsChangoMas = ({
 
   // Filtrado + ORDENAMIENTO DE MENOR A MAYOR PRECIO
   const productosFiltrados = useMemo(() => {
-    const filtrados = productos
-      .filter((p) => {
-        const coincideMarca = filtroMarca
-          ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim()
-          : true;
-        const coincideContenido = filtroContenido
-          ? obtenerRangoContenido(p.contenido) === filtroContenido
-          : true;
-        return coincideMarca && coincideContenido;
-      });
+    const filtrados = productos.filter((p) => {
+      const coincideMarca = filtroMarca
+        ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim()
+        : true;
+      const coincideContenido = filtroContenido
+        ? obtenerRangoContenido(p.contenido) === filtroContenido
+        : true;
+      return coincideMarca && coincideContenido;
+    });
     return ordenarPorPrecioRelativo(filtrados);
   }, [productos, filtroMarca, filtroContenido]);
 

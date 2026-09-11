@@ -1,4 +1,5 @@
 // src/utils/extraerDatosPapel.js
+// cspell: ignore Estandar GENERICA HIGIENICO metraje numeros     
 //
 // Extrae contenido (rollos) y precio relativo para papel higiénico / rollos de
 // cocina, según el diccionario de unidades y metros propio de cada tienda.
@@ -39,6 +40,11 @@ const CONFIG_GENERICA = {
 const regexRollosPrefijo = /(?:x|pack\s*x|paquete\s*x?)\s*(\d+)\b/i;
 const regexMetrosOM2 = /(\d+)\s*(?:m2|m²|mts?|metros?)\b/i;
 
+// Dimensiones en centímetros (ancho/largo de la hoja): se descartan antes de
+// buscar metros/rollos para que no se confundan con esos valores (ej: "10 Cm"
+// no es la cantidad de rollos ni el metraje del producto).
+const regexCentimetros = /\d+\s*(?:cm\.?|centimetros?)\b/gi;
+
 // "30 m x 6 u" / "30 mts x 6 rollos": metros por rollo primero, cantidad de rollos después.
 const regexMetrosXRollos =
   /(\d+)\s*(?:m|mts?|metros)\b\s*x\s*(\d+)\s*(?:u|rll|rollos?)?\b/i;
@@ -51,6 +57,73 @@ const formatearMoneda = (valor) =>
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+
+// --- Fallback exclusivo de ChangoMás: "Gramaje factor de conversión" trae los
+// metros totales del pack (a veces truncado a 2 cifras), y se usa para deducir
+// rollos/metros cuando el título no los especifica completos.
+
+// La API a veces trunca el valor a 2 cifras (ej: 12, 36, 48 en vez de 120, 360, 480).
+const normalizarMetrosTotalesChangoMas = (raw) => {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const num = parseInt(String(raw).replace(",", "."), 10);
+  if (!Number.isFinite(num) || num <= 0) return null;
+  return num >= 10 && num <= 99 ? num * 10 : num;
+};
+
+const METROS_COMUNES_CHANGOMAS = [30, 50, 60];
+
+// Tabla de equivalencias conocidas + deducción genérica por metraje común (30/50/60m).
+const deducirRollosYMetrosChangoMas = (metrosTotales) => {
+  const tabla = {
+    120: { rollos: 4, metros: 30 },
+    180: { rollos: 6, metros: 30 },
+    200: { rollos: 4, metros: 50 },
+    360: { rollos: 12, metros: 30 },
+  };
+  if (tabla[metrosTotales]) return tabla[metrosTotales];
+
+  for (const metros of METROS_COMUNES_CHANGOMAS) {
+    if (metrosTotales % metros === 0) {
+      return { rollos: metrosTotales / metros, metros };
+    }
+  }
+  return null;
+};
+
+// Aplica el fallback de metros totales para ChangoMás sobre lo detectado en el
+// título, cubriendo los 4 casos: A) título completo, B) faltan metros,
+// C) faltan rollos, D) no hay ni rollos ni metros en el título.
+const resolverConFallbackChangoMas = (rollos, metros, rollosEspecificados, metrosTotalesRaw) => {
+  const metrosTotalesFallback = normalizarMetrosTotalesChangoMas(metrosTotalesRaw);
+
+  // Caso A: el título ya trae ambos datos.
+  if (rollosEspecificados && metros) {
+    return { rollos, metros };
+  }
+
+  if (!metrosTotalesFallback) return null;
+
+  // Caso B: falta el metraje por rollo.
+  if (rollosEspecificados && !metros) {
+    const metrosPorRollo = metrosTotalesFallback / rollos;
+    if (Number.isFinite(metrosPorRollo) && metrosPorRollo > 0) {
+      return { rollos, metros: metrosPorRollo };
+    }
+    return null;
+  }
+
+  // Caso C: faltan las unidades/rollos.
+  if (!rollosEspecificados && metros) {
+    const rollosDeducidos = metrosTotalesFallback / metros;
+    if (Number.isFinite(rollosDeducidos) && rollosDeducidos > 0) {
+      return { rollos: rollosDeducidos, metros };
+    }
+    return null;
+  }
+
+  // Caso D: no hay ni rollos ni metros en el título, se usa tabla/patrón de equivalencias.
+  return deducirRollosYMetrosChangoMas(metrosTotalesFallback);
+};
 
 // Detecta rollos y metros por rollo. Resuelve el caso "... X 30 ... 12 M2":
 // si el número que sigue a "X" no es un tamaño de pack estándar, es el
@@ -121,7 +194,7 @@ const detectarRollosYMetros = (titulo, config) => {
 
 // Detecta papel higiénico / rollo de cocina y calcula el precio relativo
 // (por metro si el título especifica metraje, por unidad/rollo si no).
-export const extraerDatosPapel = (titulo = "", precioFinal = 0, tienda = "") => {
+export const extraerDatosPapel = (titulo = "", precioFinal = 0, tienda = "", metrosTotalesRaw = null) => {
   if (!titulo) return null;
 
   const t = titulo.toUpperCase();
@@ -141,10 +214,24 @@ export const extraerDatosPapel = (titulo = "", precioFinal = 0, tienda = "") => 
   if (!precio || precio <= 0) return null;
 
   const config = CONFIG_TIENDA[tienda] || CONFIG_GENERICA;
-  const { rollos, metros, rollosEspecificados } = detectarRollosYMetros(titulo, config);
+  const tituloSinCm = titulo.replace(regexCentimetros, " ");
+  const { rollos, metros, rollosEspecificados } = detectarRollosYMetros(tituloSinCm, config);
+
+  // ChangoMás: usa "Gramaje factor de conversión" (metros totales del pack) como
+  // fallback cuando el título no trae rollos y/o metraje por rollo completos.
+  if (tienda === "changomas") {
+    const resuelto = resolverConFallbackChangoMas(rollos, metros, rollosEspecificados, metrosTotalesRaw);
+    if (resuelto) {
+      const metrosTotales = resuelto.rollos * resuelto.metros;
+      return {
+        contenido: `${resuelto.rollos}u x ${resuelto.metros} mts`,
+        precioPorUnidad: `${formatearMoneda(precio / metrosTotales)} x 1 M`,
+      };
+    }
+  }
 
   const rollosFinal = rollos || 1;
-  const etiquetaRollo = tienda === "vea" ? "U" : "RLL";
+  const etiquetaRollo = "U"
 
   // Título sin unidades detectadas: no hay base para un precio relativo confiable.
   if (!rollosEspecificados) {

@@ -24,20 +24,30 @@ export const calcularPrecioPorUnidad = (precio, contenido) => {
   return { valor, unidad: unidadBase };
 };
 
-// Ordena productos de menor a mayor precio relativo ($/kg, $/L o $/un), calculado
-// on-the-fly desde precio + contenido. Empate -> precio total asc. Sin contenido parseable -> al final.
+// Extrae el valor numérico de un string "precioPorUnidad" (ej: "$120,50 x 1 M",
+// "$1.200,00 x 1 KG"). Sin match o "S/E" / "Sin especificar" -> Infinity (va al final).
+export const parsePrecioPorUnidad = (precioPorUnidad) => {
+  if (!precioPorUnidad || typeof precioPorUnidad !== "string") return Infinity;
+
+  const match = precioPorUnidad.match(/\$\s*([\d.,]+)/);
+  if (!match) return Infinity;
+
+  const numero = parseFloat(
+    match[1].replace(/\./g, "").replace(",", "."),
+  );
+
+  return Number.isFinite(numero) ? numero : Infinity;
+};
+
+// Ordena productos estrictamente de menor a mayor precio relativo, parseando el
+// string `precioPorUnidad` ya calculado por cada mapeador. Sin precio relativo
+// válido -> Infinity (al final). Empate -> precio final asc.
 export const ordenarPorPrecioRelativo = (productos) => {
   return [...productos].sort((a, b) => {
-    const valA = calcularPrecioPorUnidad(a.precio, a.contenido)?.valor;
-    const valB = calcularPrecioPorUnidad(b.precio, b.contenido)?.valor;
+    const valA = parsePrecioPorUnidad(a.precioPorUnidad);
+    const valB = parsePrecioPorUnidad(b.precioPorUnidad);
 
-    if (valA != null && valB != null) {
-      if (valA !== valB) return valA - valB;
-      return a.precio - b.precio;
-    }
-    if (valA != null) return -1;
-    if (valB != null) return 1;
-
+    if (valA !== valB) return valA - valB;
     return a.precio - b.precio;
   });
 };

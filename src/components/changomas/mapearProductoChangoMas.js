@@ -1,11 +1,11 @@
 // src/utils/mappers/mapearProductoChangoMas.js
-
+// cspell: ignore changomas chango mas masonline busqueda productosUnicos promocion acum commertialOffer categoria
 import { extraerDatosPapel } from '../../utils/extraerDatosPapel';
 
 const extraerContenidoDeTexto = (texto = '') => {
   if (!texto) return '';
 
-  // RegEx mejorada para detectar enteros y decimales seguidos de unidades
+  // RegEx mejorada para detectar enteros y decimales seguidos de unidades 
   const regex = /(\d+(?:[\.,]\d+)?)\s*(l|lt|lts|litro|litros|ml|cc|g|gr|grs|gramos|kg|kilo|kilos|u|unid|unidades)\b/i;
   const match = texto.match(regex);
 
@@ -42,9 +42,6 @@ const obtenerContenidoDesdeGramaje = (item) => {
   return extraerContenidoDeTexto(contenidoBruto);
 };
 
-// ChangoMás informa la cantidad exacta de unidades (paquetes/packs) en
-// "Gramaje factor de conversión" cuando "Gramaje de unidad de medida" es UNI/UNID/UD/UN.
-// Ese dato es más confiable que intentar parsearlo del nombre o de otros atributos.
 const obtenerContenidoChangoMas = (item, nombre) => {
   const unidadMedidaRaw = primero(item['Gramaje de unidad de medida']) || '';
   const factorConversionRaw = primero(item['Gramaje factor de conversión']);
@@ -146,7 +143,8 @@ export const mapearProductoChangoMas = (dataOriginal = []) => {
 
       const contenidoFinal = contenido || 'Sin especificar';
       const precioPorUnidad = calcularPrecioPorUnidad(precioFinal, contenidoFinal);
-      const datosPapel = extraerDatosPapel(nombre, precioFinal, 'changomas');
+      const metrosTotalesRaw = primero(item['Gramaje factor de conversión']);
+      const datosPapel = extraerDatosPapel(nombre, precioFinal, 'changomas', metrosTotalesRaw);
 
       return {
         id: `changomas-${id}`,
