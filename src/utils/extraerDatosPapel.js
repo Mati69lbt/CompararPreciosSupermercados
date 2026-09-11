@@ -215,7 +215,12 @@ export const extraerDatosPapel = (titulo = "", precioFinal = 0, tienda = "", met
 
   const config = CONFIG_TIENDA[tienda] || CONFIG_GENERICA;
   const tituloSinCm = titulo.replace(regexCentimetros, " ");
-  const { rollos, metros, rollosEspecificados } = detectarRollosYMetros(tituloSinCm, config);
+  // Normaliza puntos de abreviatura ("u." / "m.") a espacios, sin tocar decimales
+  // (ej: "1.5"), para que "4 u. x 80 m." matchee como "rollos x metros" y no
+  // caiga en el fallback de prefijo "x <n>" (que confundiría 80 con la cantidad
+  // de rollos en vez del metraje).
+  const tituloNormalizado = tituloSinCm.replace(/(?<!\d)\.(?!\d)/g, " ");
+  const { rollos, metros, rollosEspecificados } = detectarRollosYMetros(tituloNormalizado, config);
 
   // ChangoMás: usa "Gramaje factor de conversión" (metros totales del pack) como
   // fallback cuando el título no trae rollos y/o metraje por rollo completos.

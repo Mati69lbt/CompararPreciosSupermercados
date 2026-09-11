@@ -8,7 +8,10 @@ import { ordenarPorPrecioRelativo } from "../../utils/precioPorUnidad";
 const PRODUCTOS_POR_PAGINA = 50;
 
 const TarjetaProducto = ({ prod, onSeleccionar, vistaUnica }) => {
-  const { claseBorde, onMouseEnter, onMouseLeave } = useEstiloTarjeta("coto", prod.id);
+  const { claseBorde, onMouseEnter, onMouseLeave } = useEstiloTarjeta(
+    "coto",
+    prod.id,
+  );
   const tieneDescuento = prod.listPrice > prod.precio;
   const descuento = tieneDescuento
     ? Math.round((1 - prod.precio / prod.listPrice) * 100)
@@ -110,6 +113,31 @@ const ProductsCoto = ({
         );
       });
 
+      todosRaw.sort((a, b) => {
+        const marcaA = (a.brand || "").toString();
+        const marcaB = (b.brand || "").toString();
+        return marcaA.localeCompare(marcaB, "es", { sensitivity: "base" });
+      });
+
+      console.log(todosRaw);
+
+      console.table(
+        todosRaw.map((p) => {
+          const itemData = p.data || {};
+          const precioNormal = itemData.product_list_price || 0;
+          // Si la API de Coto devuelve el precio final en otra propiedad de 'price', se ajusta acá:
+          const precioBase = itemData.price?.[0]?.price || precioNormal;
+
+          return {
+            Marca: itemData.product_brand || "SIN MARCA",
+            Nombre: itemData.sku_display_name || itemData.sku_description || "",
+            PrecioBase: precioBase,
+            ListPrice: precioNormal,
+            Diferencia: (precioNormal - precioBase).toLocaleString("es-AR"),
+          };
+        }),
+      );
+
       if (todosRaw.length > 0) {
         const productosLimpios = mapearProductoCoto({
           response: { results: todosRaw },
@@ -144,16 +172,15 @@ const ProductsCoto = ({
 
   // Filtrado + ORDENAMIENTO DE MENOR A MAYOR PRECIO
   const productosFiltrados = useMemo(() => {
-    const filtrados = productos
-      .filter((p) => {
-        const coincideMarca = filtroMarca
-          ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim()
-          : true;
-        const coincideContenido = filtroContenido
-          ? obtenerRangoContenido(p.contenido) === filtroContenido
-          : true;
-        return coincideMarca && coincideContenido;
-      });
+    const filtrados = productos.filter((p) => {
+      const coincideMarca = filtroMarca
+        ? p.marca?.toUpperCase().trim() === filtroMarca.toUpperCase().trim()
+        : true;
+      const coincideContenido = filtroContenido
+        ? obtenerRangoContenido(p.contenido) === filtroContenido
+        : true;
+      return coincideMarca && coincideContenido;
+    });
     return ordenarPorPrecioRelativo(filtrados);
   }, [productos, filtroMarca, filtroContenido]);
 
